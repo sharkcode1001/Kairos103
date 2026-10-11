@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Kairos103.Cli": {
+      "commandName": "Project",
+      "workingDirectory": "$(SolutionDir)"
+    }
+  }
+}

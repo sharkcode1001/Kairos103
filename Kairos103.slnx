@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Kairos103.Core/Kairos103.Core.csproj" />
+    <Project Path="src/Kairos103.Benchmarks/Kairos103.Benchmarks.csproj" />
+    <Project Path="src/Kairos103.Cli/Kairos103.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kairos103.Tests/Kairos103.Tests.csproj" />
+  </Folder>
+</Solution>

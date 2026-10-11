@@ -35,7 +35,7 @@ public static class AsciiPlotter
 
         for (int i = 0; i < factors.Length; i++)
         {
-            sb.AppendLine($"| {factors[i]:F1}x | {kairosAcc[i] * 100.0:F2}% | {transformerAcc[i] * 100.0:F2}% | {lstmAcc[i] * 100.0:F2}% |");
+            sb.AppendLine(FormattableString.Invariant($"| {factors[i]:F1}x | {kairosAcc[i] * 100.0:F2}% | {transformerAcc[i] * 100.0:F2}% | {lstmAcc[i] * 100.0:F2}% |"));
         }
 
         sb.AppendLine();

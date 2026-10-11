@@ -75,7 +75,8 @@ public static class ExportReportCommand
             Func<double, double> getY = acc => 300.0 - (acc * 240.0);
 
             string PointsToSvg(double[] accs) =>
-                string.Join(" ", factors.Select((f, idx) => $"{getX(f):F1},{getY(accs[idx]):F1}"));
+                string.Join(" ", factors.Select((f, idx) =>
+                    FormattableString.Invariant($"{getX(f):F1},{getY(accs[idx]):F1}")));
 
             sb.AppendLine($"  <polyline points=\"{PointsToSvg(kairosAcc)}\" fill=\"none\" stroke=\"#00e676\" stroke-width=\"3\"/>");
             sb.AppendLine($"  <polyline points=\"{PointsToSvg(transAcc)}\" fill=\"none\" stroke=\"#ff5252\" stroke-width=\"2\" stroke-dasharray=\"4\"/>");

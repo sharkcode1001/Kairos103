@@ -1,8 +1,10 @@
 # Kairos103: Redes Neuronales Asíncronas por Orden de Disparo con Invarianza Estricta a la Dilatación Temporal (Time-Warping)
 
-*Autor: Equipo de Investigación Kairos103*  
-*Publicado: Octubre 2026*  
-*Ecosistema: .NET 10 | Computación Neuromórfica | Aprendizaje Orientado a Eventos*
+* **Autor:** **Erisnel Lora Sugve**  
+* **Filiación:** Investigador Independiente, Santiago de Cuba, Cuba  
+* **Email:** [`lorasugve@gmail.com`](mailto:lorasugve@gmail.com)  
+* **ORCID:** [0009-0007-2047-9345](https://orcid.org/0009-0007-2047-9345)  
+* **Ecosistema:** .NET 10 | Computación Neuromórfica | Aprendizaje Orientado a Eventos
 
 ---
 
@@ -154,6 +156,18 @@ Kairos103 demuestra que el paradigma dominante de discretización métrica rígi
 
 Al rescatar la concepción cualitativa del tiempo (*Kairos*) y combinarla con modelos biológicos de primer disparo y matemáticas combinatorias compactas, es posible construir sistemas de aprendizaje que son **estructuralmente inmunes a las dilataciones temporales**, consumiendo una fracción mínima de energía.
 
-El código fuente completo, los datasets de benchmarking (WarpStress v1 y MIT-BIH) y los protocolos reproducibles están disponibles de forma abierta en GitHub bajo licencia MIT.
+El código fuente completo, los datasets de benchmarking (WarpStress v1 y MIT-BIH) y los protocolos reproducibles están disponibles de forma abierta en GitHub bajo la licencia libre **GNU General Public License v3.0 (GPL-3.0)**.
 
 * **Repositorio Oficial:** [https://github.com/sharkcode1001/Kairos103](https://github.com/sharkcode1001/Kairos103)
+
+---
+
+## 8. Licencia y Contacto para Uso Comercial
+
+Kairos103 opera bajo un esquema de **licenciamiento dual**:
+* **Uso Académico y Código Abierto:** Distribuido bajo **GNU GPL v3**. Cualquier trabajo derivado publicado debe mantener la reciprocidad de código abierto.
+* **Licenciamiento Comercial y Empresarial:** Para integración en productos propietarios, microcontroladores comerciales, dispositivos médicos cerrados o entornos industriales con exención de *copyleft*, contactar directamente al autor:
+  * **Autor:** **Erisnel Lora Sugve**
+  * **Email:** [`lorasugve@gmail.com`](mailto:lorasugve@gmail.com)
+  * **ORCID:** [0009-0007-2047-9345](https://orcid.org/0009-0007-2047-9345)
+  * **Ubicación:** Santiago de Cuba, Cuba

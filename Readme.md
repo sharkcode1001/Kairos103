@@ -1,6 +1,6 @@
 # Kairos103: Clockless Rank-Order Neural Architecture with Strict Time-Warp Invariance
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Platform: .NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 [![Application: Console CLI](https://img.shields.io/badge/Interface-CLI%20First%20(Scientific)-black.svg)](#)
 [![Focus: Neuromorphic Computing](https://img.shields.io/badge/Focus-Event--Driven%20%7C%20Rank--Order-green.svg)](#)
@@ -206,6 +206,14 @@ Todo el experimento está concebido para ejecutarse en cualquier ordenador port�
 
 ---
 
-## 10. Licencia
+## 10. Licencia y Contacto Comercial
 
-Este proyecto está distribuido bajo la licencia **MIT**. Consulte el archivo `LICENSE` para más detalles.
+Este proyecto es software libre y de código abierto bajo los términos de la licencia **GNU General Public License v3.0 (GPL-3.0)**. Consulte el archivo `LICENSE` para el texto completo.
+
+### Licenciamiento Comercial / Dual Licensing
+Para entornos empresariales, industriales, productos cerrados o casos de uso comercial que requieran exenciones a los términos *copyleft* de la GNU GPL v3, se ofrecen licencias comerciales personalizadas directamente con el autor:
+
+* **Autor:** **Erisnel Lora Sugve**
+* **Filiación:** Investigador Independiente, Santiago de Cuba, Cuba
+* **Email:** [`lorasugve@gmail.com`](mailto:lorasugve@gmail.com)
+* **ORCID:** [0009-0007-2047-9345](https://orcid.org/0009-0007-2047-9345)

@@ -1,8 +1,10 @@
 # Kairos103: Clockless Rank-Order Neural Architecture with Strict Time-Warp Invariance
 
-*Author: Kairos103 Research Team*  
-*Date: October 2026*  
-*Ecosystem: .NET 10 | Neuromorphic Computing | Event-Driven AI*
+* **Author:** **Erisnel Lora Sugve**  
+* **Affiliation:** Independent Researcher, Santiago de Cuba, Cuba  
+* **Email:** [`lorasugve@gmail.com`](mailto:lorasugve@gmail.com)  
+* **ORCID:** [0009-0007-2047-9345](https://orcid.org/0009-0007-2047-9345)  
+* **Ecosystem:** .NET 10 | Neuromorphic Computing | Event-Driven AI
 
 ---
 
@@ -154,6 +156,18 @@ Kairos103 demonstrates that rigid metric time discretization is neither the sole
 
 By grounding neural dynamics in qualitative relative precedence (*Kairos*), first-spike arrival times, and bijective combinatorial representations, machine learning can achieve **structural time-warp invariance** at a fraction of the computational and energy cost.
 
-The full source code, datasets (WarpStress v1 and MIT-BIH subsets), and reproduction scripts are openly available on GitHub under the MIT License.
+The complete source code, benchmark datasets (WarpStress v1 and MIT-BIH subsets), and reproduction scripts are openly available on GitHub under the free software **GNU General Public License v3.0 (GPL-3.0)**.
 
 * **GitHub Repository:** [https://github.com/sharkcode1001/Kairos103](https://github.com/sharkcode1001/Kairos103)
+
+---
+
+## 8. Licensing & Commercial Contact
+
+Kairos103 is offered under a **dual-licensing framework**:
+* **Academic & Open Source:** Licensed under the copyleft terms of the **GNU General Public License v3.0 (GPL-3.0)**.
+* **Commercial & Proprietary Licensing:** For industrial deployment, proprietary software integration, closed medical or embedded edge products requiring an exemption from copyleft obligations, commercial licenses are available directly from the author:
+  * **Author:** **Erisnel Lora Sugve**
+  * **Email:** [`lorasugve@gmail.com`](mailto:lorasugve@gmail.com)
+  * **ORCID:** [0009-0007-2047-9345](https://orcid.org/0009-0007-2047-9345)
+  * **Location:** Santiago de Cuba, Cuba

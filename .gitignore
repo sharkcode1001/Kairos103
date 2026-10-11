@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# OS & Environment artifacts
+.DS_Store
+Thumbs.db
+
+# Project output / benchmark results
+results/

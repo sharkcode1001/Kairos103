@@ -123,12 +123,13 @@ public sealed class SimpleLstm
     /// <summary>
     /// Entrena la red LSTM usando BPTT (Backpropagation Through Time) con optimizador Adam en C# puro.
     /// </summary>
-    public void Train(IReadOnlyList<TimeSeriesSample> dataset, int epochs = 15, double lr = 0.005)
+    public void Train(IReadOnlyList<TimeSeriesSample> dataset, int epochs = 15, double lr = 0.005, Action<int, int>? onProgress = null)
     {
         int gatesDim = 4 * HiddenDim;
 
         for (int epoch = 0; epoch < epochs; epoch++)
         {
+            onProgress?.Invoke(epoch + 1, epochs);
             foreach (var sample in dataset)
             {
                 int seqLen = Math.Min(sample.Length, sample.Values.Length);

@@ -24,8 +24,11 @@ Para cada modelo (Kairos103, Transformer, LSTM), para cada factor de velocidad y
 1. **Precisión de Clasificación ($Accuracy$ vs. $\alpha$):**
    * Curva de degradación frente a dilatación y compresión.
 2. **Costo Computacional por Decisión:**
-   * **Baselines continuos:** Número de multiplicaciones de punto flotante (FLOPs/MACs) por inferencia y memoria residente en heap.
-   * **Kairos103:** Número total de eventos discretos (spikes) generados + operaciones acumuladas discretas de lectura.
+   * **Baselines continuos (Transformer / LSTM):** Número de multiplicaciones de punto flotante acumuladas (MACs/FLOPs) por inferencia y memoria residente en heap.
+   * **Kairos103:** Desglose estricto en dos componentes:
+     * *Transducción Sensorial Front-End:* MACs continuos de muestreo local sobre las ventanas temporales.
+     * *Red y Clasificador:* Número de eventos discretos (spikes de primer disparo) + operaciones de acumulación entera en lectura (sin multiplicaciones flotantes).
+     * *Cómputo Total:* Suma de ambas etapas comparada contra el presupuesto global de atención densa del baseline.
 
 ---
 

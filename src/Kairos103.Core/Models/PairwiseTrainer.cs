@@ -25,12 +25,13 @@ public sealed class PairwiseTrainer
     /// <summary>
     /// Entrena el clasificador con descenso por gradiente estocástico sobre vectores dispersos.
     /// </summary>
-    public void Train(IReadOnlyList<(double[] Features, int Label)> dataset, int epochs = 20, double lr = 0.05)
+    public void Train(IReadOnlyList<(double[] Features, int Label)> dataset, int epochs = 20, double lr = 0.05, Action<int, int>? onProgress = null)
     {
         double[] scores = new double[ClassCount];
 
         for (int ep = 0; ep < epochs; ep++)
         {
+            onProgress?.Invoke(ep + 1, epochs);
             foreach (var (features, label) in dataset)
             {
                 // Inferencia y cálculo de puntajes

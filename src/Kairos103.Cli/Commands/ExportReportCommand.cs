@@ -1,4 +1,5 @@
 using System.Text;
+using Kairos103.Cli.Reporting;
 
 namespace Kairos103.Cli.Commands;
 
@@ -7,10 +8,15 @@ namespace Kairos103.Cli.Commands;
 /// </summary>
 public static class ExportReportCommand
 {
-    public static void Execute(string outputPath = "./results")
+    public static void Execute(string outputPath = "./results", string targetDataset = "synthetic", bool fast = true)
     {
         Directory.CreateDirectory(outputPath);
         string reportFile = Path.Combine(outputPath, "BenchmarkSummary.md");
+        string svgFile = Path.Combine(outputPath, "WarpRobustness.svg");
+
+        Console.WriteLine($"Generando datos para reporte técnico en: {outputPath}...");
+        var (factors, kairosAcc, transAcc, lstmAcc, effTracker) =
+            RunBenchmarkCommand.Execute(targetDataset: targetDataset, fastMode: fast);
 
         var sb = new StringBuilder();
         sb.AppendLine("# Informe Técnico de Benchmarking: Kairos103");
@@ -18,11 +24,73 @@ public static class ExportReportCommand
         sb.AppendLine($"* **Fecha:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         sb.AppendLine("* **Plataforma:** .NET 10.0 (C# asíncrono, Headless CLI)");
         sb.AppendLine("* **Arquitectura:** Red Rank-Order con Subregiones N=4 acopladas");
+        sb.AppendLine($"* **Dataset Evaluado:** {targetDataset.ToUpperInvariant()}");
         sb.AppendLine();
-        sb.AppendLine("## Resumen de Invarianza");
+        sb.AppendLine("## 1. Resumen de Invarianza a Time-Warping");
         sb.AppendLine("Los resultados experimentales confirman la estabilidad ante transformaciones temporales afines ($t' = \\alpha t + \\beta$).");
+        sb.AppendLine();
+        if (factors.Length > 0)
+        {
+            sb.AppendLine(AsciiPlotter.GenerateMarkdownTable(targetDataset, factors, kairosAcc, transAcc, lstmAcc));
+        }
+
+        sb.AppendLine("## 2. Métricas de Eficiencia Computacional");
+        sb.AppendLine($"- **Kairos Front-End MACs (continuos):** {effTracker.TotalFrontEndMacs:N0}");
+        sb.AppendLine($"- **Kairos Spikes Discretos (eventos):** {effTracker.TotalSpikes:N0}");
+        sb.AppendLine($"- **Kairos Acumulaciones (clasificador):** {effTracker.TotalAccumulateOps:N0}");
+        sb.AppendLine($"- **Mini-Transformer MACs:** {effTracker.TotalTransformerMacs:N0}");
+        sb.AppendLine($"- **Simple LSTM MACs:** {effTracker.TotalLstmMacs:N0}");
+        sb.AppendLine($"- **Memoria Heap Asignada:** {effTracker.MemoryAllocatedBytes:N0} bytes");
 
         File.WriteAllText(reportFile, sb.ToString());
-        Console.WriteLine($"Reporte exportado exitosamente en: {reportFile}");
+
+        // Generar SVG representativo
+        string svg = GenerateSvgPlot(factors, kairosAcc, transAcc, lstmAcc);
+        File.WriteAllText(svgFile, svg);
+
+        Console.WriteLine($"\n[OK] Reporte Markdown generado en: {reportFile}");
+        Console.WriteLine($"[OK] Gráfico vectorial generado en: {svgFile}");
+    }
+
+    private static string GenerateSvgPlot(double[] factors, double[] kairosAcc, double[] transAcc, double[] lstmAcc)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"640\" height=\"360\" viewBox=\"0 0 640 360\">");
+        sb.AppendLine("  <rect width=\"100%\" height=\"100%\" fill=\"#1e1e24\" rx=\"8\"/>");
+        sb.AppendLine("  <text x=\"320\" y=\"32\" fill=\"#ffffff\" font-family=\"sans-serif\" font-size=\"16\" font-weight=\"bold\" text-anchor=\"middle\">Time-Warp Robustness: Accuracy vs Scale Factor</text>");
+        
+        // Ejes
+        sb.AppendLine("  <line x1=\"80\" y1=\"300\" x2=\"580\" y2=\"300\" stroke=\"#666\" stroke-width=\"1\"/>");
+        sb.AppendLine("  <line x1=\"80\" y1=\"60\" x2=\"80\" y2=\"300\" stroke=\"#666\" stroke-width=\"1\"/>");
+        sb.AppendLine("  <text x=\"40\" y=\"70\" fill=\"#aaa\" font-family=\"sans-serif\" font-size=\"12\">100%</text>");
+        sb.AppendLine("  <text x=\"40\" y=\"185\" fill=\"#aaa\" font-family=\"sans-serif\" font-size=\"12\">50%</text>");
+        sb.AppendLine("  <text x=\"40\" y=\"300\" fill=\"#aaa\" font-family=\"sans-serif\" font-size=\"12\">0%</text>");
+
+        // Puntos y líneas si hay datos
+        if (factors.Length >= 2)
+        {
+            double minF = factors.First();
+            double maxF = factors.Last();
+            Func<double, double> getX = f => 80.0 + ((f - minF) / (maxF - minF)) * 500.0;
+            Func<double, double> getY = acc => 300.0 - (acc * 240.0);
+
+            string PointsToSvg(double[] accs) =>
+                string.Join(" ", factors.Select((f, idx) => $"{getX(f):F1},{getY(accs[idx]):F1}"));
+
+            sb.AppendLine($"  <polyline points=\"{PointsToSvg(kairosAcc)}\" fill=\"none\" stroke=\"#00e676\" stroke-width=\"3\"/>");
+            sb.AppendLine($"  <polyline points=\"{PointsToSvg(transAcc)}\" fill=\"none\" stroke=\"#ff5252\" stroke-width=\"2\" stroke-dasharray=\"4\"/>");
+            sb.AppendLine($"  <polyline points=\"{PointsToSvg(lstmAcc)}\" fill=\"none\" stroke=\"#40c4ff\" stroke-width=\"2\" stroke-dasharray=\"2\"/>");
+        }
+
+        // Leyenda
+        sb.AppendLine("  <circle cx=\"140\" cy=\"335\" r=\"5\" fill=\"#00e676\"/>");
+        sb.AppendLine("  <text x=\"155\" y=\"339\" fill=\"#fff\" font-family=\"sans-serif\" font-size=\"12\">Kairos103</text>");
+        sb.AppendLine("  <circle cx=\"280\" cy=\"335\" r=\"5\" fill=\"#ff5252\"/>");
+        sb.AppendLine("  <text x=\"295\" y=\"339\" fill=\"#fff\" font-family=\"sans-serif\" font-size=\"12\">Mini-Transformer</text>");
+        sb.AppendLine("  <circle cx=\"450\" cy=\"335\" r=\"5\" fill=\"#40c4ff\"/>");
+        sb.AppendLine("  <text x=\"465\" y=\"339\" fill=\"#fff\" font-family=\"sans-serif\" font-size=\"12\">Simple LSTM</text>");
+
+        sb.AppendLine("</svg>");
+        return sb.ToString();
     }
 }

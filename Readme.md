@@ -65,10 +65,11 @@ $$\sigma(T') \equiv \sigma(T)$$
 **Consecuencia:** La representación interna del diccionario de rangos de Kairos103 es **100% idéntica** bajo cualquier factor de dilatación o compresión temporal $\alpha$, sin necesidad de normalización ni reescalado dinámico.
 
 ### 4.2. Objetivos Empíricos Concretos a Demostrar
-1. **Invarianza al Time-Warping ($0.5\times$ a $2.0\times$):**
-   * En tareas de clasificación de secuencias temporales (señales continuas, vibración, acelerometría o audio), Kairos103 mantiene una degradación inferior al $2\%$ en precisión sin reentrenamiento, mientras que Transformers y LSTMs sufren caídas de más del $30\%$.
-2. **Eficiencia Cuántica de Eventos (Event-Sparsity):**
-   * La inferencia se completa utilizando únicamente $\sim 10^2$ operaciones de acumulación discreta (sumas por disparo), frente a las $\sim 10^5 - 10^7$ multiplicaciones acumuladas (MACs) de un Transformer equivalente.
+1. **Invarianza al Time-Warping ($0.5\times$ a $2.0\times$) en Épocas Acotadas:**
+   * En tareas de clasificación de secuencias temporales acotadas (ráfagas sensoriales, vibración o complejos ECG delimitados por su intervalo de activación), Kairos103 mantiene una degradación inferior al $2\%$ en precisión sin reentrenamiento ni aumento de datos, mientras que baselines con codificación posicional rígida como Transformers y LSTMs sufren caídas superiores al $20\%-30\%$.
+2. **Eficiencia Computacional Discreta y Desglose de MACs:**
+   * En la etapa de red y readout clasificador, la inferencia se resuelve exclusivamente mediante sumas acumuladas sobre eventos dispersos ($\sim 10^4$ adiciones discretas sin multiplicaciones densas).
+   * Al contabilizar el pipeline completo (incluyendo los filtros analógicos/digitales continuos del front-end sensorial), Kairos103 reduce el cómputo total en un orden de magnitud ($\sim 14.6\times$ menos operaciones MAC/FLOPs globales frente a la auto-atención densa cuadrática $O(T^2 \cdot D)$ de un Transformer equivalente).
 3. **Tolerancia al Jitter mediante Subregiones Modulares:**
    * La segmentación en módulos locales de $N=4$ neuronas con inhibición lateral adaptativa filtra el ruido de fase de alta frecuencia, conservando una estabilidad de código superior al $97\%$.
 
@@ -166,15 +167,19 @@ Kairos103/
 La aplicación de consola ofrece comandos directos para reproducibilidad en terminal:
 
 ```bash
-# 1. Ejecutar benchmark comparativo completo (Kairos103 vs Transformer vs LSTM)
-dotnet run --project src/Kairos103.Cli -- benchmark --warp-factors 0.5,0.7,1.0,1.5,2.0 --runs 10
+# 1. Ejecutar benchmark comparativo rápido (Kairos103 vs Transformer vs LSTM)
+dotnet run --project src/Kairos103.Cli -- benchmark --fast
 
-# 2. Ejecutar prueba de tolerancia a Jitter temporal
-dotnet run --project src/Kairos103.Cli -- jitter-sweep --max-jitter-ms 50 --step 5
+# 2. Ejecutar benchmark completo sobre todos los datos y factores
+dotnet run --project src/Kairos103.Cli -- benchmark --warp-factors 0.5,0.8,1.0,1.2,2.0 --dataset synthetic
 
-# 3. Exportar figuras listas para publicación técnica (Markdown + SVG)
+# 3. Ejecutar prueba de tolerancia a Jitter temporal
+dotnet run --project src/Kairos103.Cli -- jitter-sweep --max-jitter-ms 50 --step 10
+
+# 4. Exportar reporte técnico y figuras vectoriales (Markdown + SVG en ./results)
 dotnet run --project src/Kairos103.Cli -- export-plots --output ./results/
 ```
+
 
 ---
 

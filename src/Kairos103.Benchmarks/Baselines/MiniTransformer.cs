@@ -179,12 +179,13 @@ public sealed class MiniTransformer
     /// <summary>
     /// Entrena el Mini-Transformer usando retropropagación estándar (Cross-Entropy + optimizador Adam) O(seqLen * DModel^2).
     /// </summary>
-    public void Train(IReadOnlyList<TimeSeriesSample> dataset, int epochs = 8, double lr = 0.01)
+    public void Train(IReadOnlyList<TimeSeriesSample> dataset, int epochs = 8, double lr = 0.01, Action<int, int>? onProgress = null)
     {
         double invSqrtD = 1.0 / Math.Sqrt(DModel);
 
         for (int epoch = 0; epoch < epochs; epoch++)
         {
+            onProgress?.Invoke(epoch + 1, epochs);
             foreach (var sample in dataset)
             {
                 int seqLen = Math.Min(sample.Length, MaxSeqLen);

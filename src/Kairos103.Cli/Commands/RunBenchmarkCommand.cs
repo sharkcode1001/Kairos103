@@ -12,11 +12,21 @@ namespace Kairos103.Cli.Commands;
 /// </summary>
 public static class RunBenchmarkCommand
 {
-    public static void Execute(string datasetsDir = "datasets", string targetDataset = "synthetic")
+    public static (double[] Factors, double[] KairosAcc, double[] TransAcc, double[] LstmAcc, EfficiencyTracker Tracker) Execute(
+        string datasetsDir = "datasets",
+        string targetDataset = "synthetic",
+        double[]? customFactors = null,
+        int runs = 1,
+        bool fastMode = false)
     {
         string resolvedDir = LocateDatasetsDirectory(datasetsDir);
         Console.WriteLine($"=== KAIROS103 BENCHMARK PROTOCOL ===");
-        Console.WriteLine($"Dataset: {targetDataset.ToUpperInvariant()} | Directorio: {resolvedDir}\n");
+        Console.WriteLine($"Dataset: {targetDataset.ToUpperInvariant()} | Directorio: {resolvedDir}");
+        if (fastMode)
+        {
+            Console.WriteLine($"Modo: RÁPIDO (--fast) activado para verificación ágil.");
+        }
+        Console.WriteLine();
 
         string subDir = targetDataset.Equals("ecg", StringComparison.OrdinalIgnoreCase) ? "ecg" : "synthetic";
         string trainFile = Path.Combine(resolvedDir, subDir, subDir == "ecg" ? "ecg_train.csv" : "warpstress_train.csv");
@@ -25,11 +35,15 @@ public static class RunBenchmarkCommand
         {
             Console.WriteLine($"[ERROR] No se encontró el dataset de entrenamiento en: {trainFile}");
             Console.WriteLine($"        Ruta de búsqueda actual: {Directory.GetCurrentDirectory()}");
-            return;
+            return ([], [], [], [], new EfficiencyTracker());
         }
 
         Console.WriteLine($"[1/4] Cargando dataset de entrenamiento nominal (1.0x)...");
         var trainData = DatasetLoader.LoadCsv(trainFile);
+        if (fastMode && trainData.Count > 400)
+        {
+            trainData = trainData.Take(400).ToList();
+        }
         int classCount = trainData.Select(d => d.Label).Distinct().Count();
         Console.WriteLine($"      Muestras cargadas: {trainData.Count} | Clases: {classCount}");
 
@@ -45,20 +59,35 @@ public static class RunBenchmarkCommand
             var (feats, _) = network.Forward(sample.Values, sample.Length);
             encodedTrain.Add((feats, sample.Label));
         }
-        trainer.Train(encodedTrain, epochs: 25, lr: 0.05);
-        Console.WriteLine("Completado.");
+        int kairosEpochs = fastMode ? 10 : 25;
+        trainer.Train(encodedTrain, epochs: kairosEpochs, lr: 0.05, (curr, tot) =>
+        {
+            if (curr == 1 || curr == tot || curr % 5 == 0)
+            {
+                Console.Write($"\r      [1/3] Entrenando Kairos103 (Rank-Order Modular N=4)... Época {curr}/{tot}");
+            }
+        });
+        Console.WriteLine(" -> Completado.");
 
+        int tfEpochs = fastMode ? 2 : 4;
         Console.Write($"      [2/3] Entrenando Baseline Mini-Transformer (Attention + PE con Adam)... ");
         var transformer = new MiniTransformer(classCount);
-        transformer.Train(trainData, epochs: 6, lr: 0.005);
-        Console.WriteLine("Completado.");
+        transformer.Train(trainData, epochs: tfEpochs, lr: 0.005, (curr, tot) =>
+        {
+            Console.Write($"\r      [2/3] Entrenando Baseline Mini-Transformer (Attention + PE con Adam)... Época {curr}/{tot}");
+        });
+        Console.WriteLine(" -> Completado.");
 
+        int lstmEpochs = fastMode ? 2 : 4;
         Console.Write($"      [3/3] Entrenando Baseline Simple LSTM (BPTT con Adam)... ");
         var lstm = new SimpleLstm(classCount);
-        lstm.Train(trainData, epochs: 6, lr: 0.005);
-        Console.WriteLine("Completado.");
+        lstm.Train(trainData, epochs: lstmEpochs, lr: 0.005, (curr, tot) =>
+        {
+            Console.Write($"\r      [3/3] Entrenando Baseline Simple LSTM (BPTT con Adam)... Época {curr}/{tot}");
+        });
+        Console.WriteLine(" -> Completado.");
 
-        double[] factors = [0.5, 0.8, 1.0, 1.2, 2.0];
+        double[] factors = customFactors ?? [0.5, 0.8, 1.0, 1.2, 2.0];
         double[] kairosAcc = new double[factors.Length];
         double[] transformerAcc = new double[factors.Length];
         double[] lstmAcc = new double[factors.Length];
@@ -66,27 +95,32 @@ public static class RunBenchmarkCommand
         var effTracker = new EfficiencyTracker();
         effTracker.StartMemoryTracking();
 
-        Console.WriteLine($"\n[3/4] Evaluando estrés temporal bajo factores: {string.Join(", ", factors.Select(f => f + "x"))}");
+        Console.WriteLine($"\n[3/4] Evaluando estrés temporal bajo factores: {string.Join(", ", factors.Select(f => f.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "x"))}");
 
         for (int i = 0; i < factors.Length; i++)
         {
             double f = factors[i];
             string testPrefix = subDir == "ecg" ? "ecg" : "warpstress";
-            string testFile = Path.Combine(resolvedDir, subDir, $"{testPrefix}_test_{f:0.0}x.csv");
+            string fStr = f.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+            string testFile = Path.Combine(resolvedDir, subDir, $"{testPrefix}_test_{fStr}x.csv");
 
             if (!File.Exists(testFile))
             {
-                // Fallback para nombres tipo 0.5x si la cultura formatea con punto
-                testFile = Path.Combine(resolvedDir, subDir, $"{testPrefix}_test_{f.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}x.csv");
+                testFile = Path.Combine(resolvedDir, subDir, $"{testPrefix}_test_{f:0.0}x.csv");
             }
 
             if (!File.Exists(testFile))
             {
-                Console.WriteLine($"      [AVISO] Archivo de test no hallado para factor {f}x: {testFile}");
+                Console.WriteLine($"      [AVISO] Archivo de test no hallado para factor {fStr}x: {testFile}");
                 continue;
             }
 
             var testData = DatasetLoader.LoadCsv(testFile);
+            if (fastMode && testData.Count > 200)
+            {
+                testData = testData.Take(200).ToList();
+            }
+
             int correctKairos = 0;
             int correctTrans = 0;
             int correctLstm = 0;
@@ -116,7 +150,7 @@ public static class RunBenchmarkCommand
             transformerAcc[i] = (double)correctTrans / testData.Count;
             lstmAcc[i] = (double)correctLstm / testData.Count;
 
-            Console.WriteLine($"      Factor {f:0.0}x -> Kairos: {kairosAcc[i] * 100.0:F1}% | Transf: {transformerAcc[i] * 100.0:F1}% | LSTM: {lstmAcc[i] * 100.0:F1}%");
+            Console.WriteLine($"      Factor {fStr}x -> Kairos: {kairosAcc[i] * 100.0:F1}% | Transf: {transformerAcc[i] * 100.0:F1}% | LSTM: {lstmAcc[i] * 100.0:F1}%");
         }
 
         effTracker.StopMemoryTracking();
@@ -132,6 +166,8 @@ public static class RunBenchmarkCommand
         Console.WriteLine($"  - Mini-Transformer MACs (continuos):   {effTracker.TotalTransformerMacs:N0}");
         Console.WriteLine($"  - Simple LSTM MACs (continuos):        {effTracker.TotalLstmMacs:N0}");
         Console.WriteLine($"  - Memoria Heap Asignada en Thread:     {effTracker.MemoryAllocatedBytes:N0} bytes");
+
+        return (factors, kairosAcc, transformerAcc, lstmAcc, effTracker);
     }
 
     private static string LocateDatasetsDirectory(string specifiedDir)

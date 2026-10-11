@@ -29,6 +29,9 @@ $$\sigma(T') \equiv \sigma(T)$$
 
 La representación discreta extraída en el diccionario de rangos es **formal e idénticamente invariante al factor de compresión o dilatación temporal $\alpha$**.
 
+### 1.3. Condición de Delimitación Temporal (Bounded-Epoch Domain)
+El teorema es estrictamente válido sobre ráfagas sensoriales o épocas acotadas donde el evento físico está delimitado por un intervalo de activación $[t_{\text{inicio}}, t_{\text{fin}}]$. La proyección del front-end mapea el soporte temporal de la señal a una coordenada de fase adimensional $\tau = \frac{t - t_{\text{inicio}}}{t_{\text{fin}} - t_{\text{inicio}}} \in [0, 1]$. La invarianza afín se manifiesta de forma pura en cualquier señal donde la morfología interna y la precedencia causal determinen la clase, independientemente de la velocidad de emisión del evento.
+
 ---
 
 ## 2. Particionamiento Modular en Subregiones $N=4$

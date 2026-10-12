@@ -69,38 +69,38 @@ public static class OnlineBenchmarkCommand
         // Baseline empirical references from rigorous full-sweep benchmark (BenchmarkSummary.md)
         var synthBaselineTransformer = new Dictionary<string, double>
         {
-            ["0.5x"] = 0.3100,
-            ["0.8x"] = 0.4950,
-            ["1.0x"] = 0.8050,
-            ["1.2x"] = 0.3900,
-            ["2.0x"] = 0.2450
+            ["0.5x"] = 0.4538,
+            ["0.8x"] = 0.6362,
+            ["1.0x"] = 0.9988,
+            ["1.2x"] = 0.4562,
+            ["2.0x"] = 0.4638
         };
 
         var synthBaselineLstm = new Dictionary<string, double>
         {
-            ["0.5x"] = 0.3000,
-            ["0.8x"] = 0.3850,
-            ["1.0x"] = 0.9850,
-            ["1.2x"] = 0.0000,
-            ["2.0x"] = 0.0050
+            ["0.5x"] = 0.7562,
+            ["0.8x"] = 0.9738,
+            ["1.0x"] = 0.9988,
+            ["1.2x"] = 0.9938,
+            ["2.0x"] = 0.5175
         };
 
         var ecgBaselineTransformer = new Dictionary<string, double>
         {
-            ["0.5x"] = 0.9000,
-            ["0.8x"] = 0.9450,
-            ["1.0x"] = 0.9700,
-            ["1.2x"] = 0.8850,
-            ["2.0x"] = 0.8850
+            ["0.5x"] = 0.9200,
+            ["0.8x"] = 0.9525,
+            ["1.0x"] = 0.9725,
+            ["1.2x"] = 0.8450,
+            ["2.0x"] = 0.9125
         };
 
         var ecgBaselineLstm = new Dictionary<string, double>
         {
-            ["0.5x"] = 0.5650,
-            ["0.8x"] = 0.7400,
-            ["1.0x"] = 0.7350,
-            ["1.2x"] = 0.8250,
-            ["2.0x"] = 0.8500
+            ["0.5x"] = 0.6625,
+            ["0.8x"] = 0.6400,
+            ["1.0x"] = 0.6550,
+            ["1.2x"] = 0.6250,
+            ["2.0x"] = 0.6550
         };
 
         // Compute dynamic degradation against nominal (1.0x)

@@ -29,7 +29,7 @@ Los resultados experimentales confirman la estabilidad ante transformaciones tem
 - **Simple LSTM MACs:** 162.512.000
 - **Memoria Heap Asignada:** 449.370.880 bytes
 
-### A. Dataset: ECG
+### B. Dataset: ECG
 
 ### Resultados de Benchmark: ecg
 

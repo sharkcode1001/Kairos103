@@ -28,15 +28,17 @@ public static class ExportReportCommand
         sb.AppendLine("Los resultados experimentales confirman la estabilidad ante transformaciones temporales afines ($t' = \\alpha t + \\beta$).");
         sb.AppendLine();
 
-        foreach (var ds in datasetsToRun)
+        for (int dsIdx = 0; dsIdx < datasetsToRun.Length; dsIdx++)
         {
+            string ds = datasetsToRun[dsIdx];
+            char sectionLetter = (char)('A' + dsIdx);
             Console.WriteLine($"\n--- Ejecutando exportación para dataset: {ds.ToUpperInvariant()} ---");
             var (factors, kairosAcc, transAcc, lstmAcc, effTracker) =
                 RunBenchmarkCommand.Execute(targetDataset: ds, fastMode: fast);
 
             if (factors.Length > 0)
             {
-                sb.AppendLine($"### A. Dataset: {ds.ToUpperInvariant()}");
+                sb.AppendLine($"### {sectionLetter}. Dataset: {ds.ToUpperInvariant()}");
                 sb.AppendLine();
                 sb.AppendLine(AsciiPlotter.GenerateMarkdownTable(ds, factors, kairosAcc, transAcc, lstmAcc));
                 sb.AppendLine();

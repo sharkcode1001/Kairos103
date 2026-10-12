@@ -11,15 +11,15 @@
 
 ## 1. Visión General y Filosofía
 
-**Kairos103** es una arquitectura neuronal asíncrona (*clockless*) de ultra-bajo consumo desarrollada en **C# / .NET 10**, concebida bajo una filosofía **CLI-First / Headless**: un motor modular orientado a consola científica para garantizar reproducibilidad total, cero contaminación de memoria por interfaces gráficas y máxima precisión en el benchmarking.
+**Kairos103** es una arquitectura neuronal asíncrona (*clockless*) desarrollada en **C# / .NET 10**, concebida para inferencia dispersa por eventos y alta eficiencia computacional bajo una filosofía **CLI-First / Headless**: un motor modular orientado a consola científica para garantizar alta reproducibilidad, mínima contención de memoria por interfaces gráficas y benchmarking riguroso.
 
 En la filosofía griega clásica:
 * **Chronos** ($\chi\rho\acute{o}\nu o\varsigma$) representa el tiempo métrico, secuencial y medido por un reloj rígido ($\Delta t$).
 * **Kairos** ($\kappa\alpha\iota\rho\acute{o}\varsigma$) representa el momento cualitativo: la relación, la oportunidad y el **orden relativo** en que suceden los eventos.
 
-Las arquitecturas contemporáneas dominantes —especialmente los **Transformers** (con codificaciones posicionales fijas $PE$) y las **RNNs/LSTMs**— dependen exclusivamente de un marco *Chronos*: discretizan la realidad en marcos o pasos de tiempo homogéneos $\Delta t$. Cuando una señal se acelera, se ralentiza o sufre fluctuaciones temporales no uniformes (*time-warping*), estas redes colapsan o exigen costosos reentrenamientos.
+Las arquitecturas contemporáneas dominantes en su formulación estándar —especialmente los **Transformers** vanilla (con codificaciones posicionales fijas $PE$) y las **RNNs/LSTMs** convencionales— dependen primordialmente de un marco *Chronos*: discretizan la realidad en marcos o pasos de tiempo homogéneos $\Delta t$. Cuando una señal no aumentada se acelera, se ralentiza o sufre fluctuaciones temporales (*time-warping*), estas redes experimentan una degradación significativa a menos que se reentrenen con aumentos de datos computacionalmente costosos.
 
-**Kairos103** opera bajo el paradigma *Kairos*: prescinde de relojes globales y coordenadas temporales absolutas. La información reside en las permutaciones de disparo relativo ($n!$) entre subregiones neuronales locales, logrando **invarianza matemática estricta a dilataciones temporales** y ejecutando inferencias mediante eventos dispersos sin multiplicaciones densas de punto flotante.
+**Kairos103** opera bajo el paradigma *Kairos*: prescinde de relojes globales y coordenadas temporales absolutas. La información reside en las permutaciones de disparo relativo ($n!$) entre subregiones neuronales locales, logrando **invarianza matemática estricta a dilataciones afines globales** y ejecutando inferencias mediante eventos dispersos sin multiplicaciones matriciales densas de punto flotante.
 
 ---
 
@@ -29,7 +29,7 @@ Para validar científicamente una arquitectura frente a baselines consolidados c
 
 1. **Aislamiento Métrico Riguroso (Zero UI Overhead):**
    * Medir microsegundos por inferencia o asignación de memoria en el heap (`GC.GetAllocatedBytesForCurrentThread()`) en WPF o WinForms introduce ruido estadístico proveniente del dispatcher, bucles de renderizado y bindings XAML.
-   * La consola asegura que el 100% de los ciclos de CPU y bytes medidos corresponden exclusivamente a la red neuronal.
+   * La consola elimina la contención de hilos de renderizado y despachadores gráficos, asegurando que las métricas reflejen el cálculo neural puro y el runtime esencial sin interferencias del entorno visual.
 2. **Automatización de Barridos Masivos (Sweeps & CI):**
    * Facilita la ejecución automatizada de experimentos reproducibles mediante argumentos de línea de comandos (evaluando a lo largo de los 5 factores canónicos de escala temporal: $0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$, junto con barridos de jitter).
 3. **Generación Automatizada de Reportes y Gráficos:**

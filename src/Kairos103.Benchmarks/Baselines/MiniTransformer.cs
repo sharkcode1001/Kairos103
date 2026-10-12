@@ -3,10 +3,10 @@ using Kairos103.Benchmarks.Data;
 namespace Kairos103.Benchmarks.Baselines;
 
 /// <summary>
-/// Modelo Baseline de Mini-Transformer temporal con capa de auto-atención y codificación posicional fija (PE).
-/// Arquitectura: Proyecciones Q/K fijas normalizadas (atención estilo reservorio), proyección V y cabezal clasificador
-/// entrenados end-to-end con Cross-Entropy + optimizador Adam en C# nativo.
-/// Soporta modo de agregación temporal: Global Average Pooling (v1) o Split Temporal Half-Pooling (v2).
+/// Temporal Mini-Transformer baseline with self-attention layer and fixed positional encoding (PE).
+/// Architecture: Fixed normalized Q/K projections (reservoir-style attention), trainable V projection and classifier head
+/// trained end-to-end with Cross-Entropy + Adam optimizer in native C#.
+/// Supports temporal aggregation mode: Global Average Pooling (v1) or Split Temporal Half-Pooling (v2).
 /// </summary>
 public sealed class MiniTransformer
 {
@@ -24,7 +24,7 @@ public sealed class MiniTransformer
     private readonly double[,] _classifier;
     private readonly double[] _classifierBias;
 
-    // Momentos Adam
+    // Adam optimizer moments
     private readonly double[,] _mV, _vV;
     private readonly double[,] _mCls, _vCls;
     private readonly double[] _mBias, _vBias;
@@ -55,7 +55,7 @@ public sealed class MiniTransformer
     }
 
     /// <summary>
-    /// Infiere sobre una señal temporal de entrada y contabiliza las operaciones MAC requeridas.
+    /// Infers over an input temporal signal and tallies required MAC operations.
     /// </summary>
     public (int Prediction, long MacCount) Forward(ReadOnlySpan<double> signal, int length)
     {
@@ -140,7 +140,7 @@ public sealed class MiniTransformer
             }
         }
 
-        // Pooling (Split Half-Pooling o Global Mean Pooling)
+        // Pooling (Split Half-Pooling or Global Mean Pooling)
         int h1 = Math.Max(1, seqLen / 2);
         int h2 = Math.Max(1, seqLen - h1);
         double invH1 = 1.0 / h1;
@@ -200,7 +200,7 @@ public sealed class MiniTransformer
     }
 
     /// <summary>
-    /// Entrena el Mini-Transformer usando retropropagación estándar (Cross-Entropy + optimizador Adam) O(seqLen * DModel^2).
+    /// Trains the Mini-Transformer using standard backpropagation (Cross-Entropy + Adam optimizer) O(seqLen * DModel^2).
     /// </summary>
     public void Train(IReadOnlyList<TimeSeriesSample> dataset, int epochs = 8, double lr = 0.01, Action<int, int>? onProgress = null)
     {
@@ -349,7 +349,7 @@ public sealed class MiniTransformer
                     }
                 }
 
-                // 3. Gradiente rápido vectorizado para W_V
+                // 3. Fast vectorized gradient for W_V
                 double[,] gradV = new double[DModel, DModel];
                 if (SplitPooling)
                 {
@@ -417,7 +417,7 @@ public sealed class MiniTransformer
                     }
                 }
 
-                // 4. Actualización de parámetros con Adam
+                // 4. Parameter update with Adam
                 _adamStep++;
                 ApplyAdam(_classifier, gradCls, _mCls, _vCls, lr);
                 ApplyAdam1D(_classifierBias, gradBias, _mBias, _vBias, lr);

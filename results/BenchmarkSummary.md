@@ -1,17 +1,17 @@
-# Informe Técnico Consolidado de Benchmarking: Kairos103
+# Consolidated Technical Benchmark Report: Kairos103
 
-* **Fecha:** 2026-10-12 01:52:33 UTC
-* **Plataforma:** .NET 10.0 (C# asíncrono, Headless CLI)
-* **Arquitectura:** Red Rank-Order con Subregiones N=4 acopladas
+* **Date:** 2026-10-12 16:43:53 UTC
+* **Platform:** .NET 10.0 (Asynchronous C#, Headless CLI)
+* **Architecture:** Modular Rank-Order Network with Coupled N=4 Subregions
 
-## 1. Resumen de Invarianza a Time-Warping
-Los resultados experimentales confirman la estabilidad ante transformaciones temporales afines ($t' = \alpha t + \beta$).
+## 1. Time-Warp Invariance Summary
+Experimental results validate stability against affine temporal transformations ($t' = \alpha t + \beta$).
 
 ### A. Dataset: SYNTHETIC
 
-### Resultados de Benchmark: synthetic
+### Benchmark Results: synthetic
 
-| Factor Warp | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
+| Warp Factor | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:----------------:|:----------------:|:-----------:|
 | 0.5x | 99.00% | 31.00% | 30.00% |
 | 0.8x | 98.00% | 49.50% | 38.50% |
@@ -21,19 +21,19 @@ Los resultados experimentales confirman la estabilidad ante transformaciones tem
 
 
 
-#### Métricas de Eficiencia Computacional
-- **Kairos Front-End MACs (continuos):** 61.440.000
-- **Kairos Spikes Discretos (eventos):** 63.999
-- **Kairos Acumulaciones (clasificador):** 64.000
+#### Computational Efficiency Metrics
+- **Kairos Front-End MACs (continuous):** 61.440.000
+- **Kairos Discrete Spikes (events):** 63.999
+- **Kairos Readout Accumulations:** 64.000
 - **Mini-Transformer MACs:** 897.568.000
-- **Simple LSTM MACs:** 162.512.000
-- **Memoria Heap Asignada:** 449.370.880 bytes
+- **Simple LSTM MACs:** 155.648.000
+- **Allocated Heap Memory:** 449.370.192 bytes
 
 ### B. Dataset: ECG
 
-### Resultados de Benchmark: ecg
+### Benchmark Results: ecg
 
-| Factor Warp | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
+| Warp Factor | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:----------------:|:----------------:|:-----------:|
 | 0.5x | 100.00% | 90.00% | 56.50% |
 | 0.8x | 100.00% | 94.50% | 74.00% |
@@ -43,11 +43,11 @@ Los resultados experimentales confirman la estabilidad ante transformaciones tem
 
 
 
-#### Métricas de Eficiencia Computacional
-- **Kairos Front-End MACs (continuos):** 61.440.000
-- **Kairos Spikes Discretos (eventos):** 58.787
-- **Kairos Acumulaciones (clasificador):** 31.744
+#### Computational Efficiency Metrics
+- **Kairos Front-End MACs (continuous):** 61.440.000
+- **Kairos Discrete Spikes (events):** 58.787
+- **Kairos Readout Accumulations:** 31.744
 - **Mini-Transformer MACs:** 1.711.072.000
-- **Simple LSTM MACs:** 228.368.000
-- **Memoria Heap Asignada:** 690.794.968 bytes
+- **Simple LSTM MACs:** 218.720.000
+- **Allocated Heap Memory:** 690.794.344 bytes
 

@@ -13,22 +13,22 @@ public class BaselineTests
         int seqLen = 32;
         var transformer = new MiniTransformer(numClasses, dModel: 8, maxSeqLen: seqLen, seed: 123);
 
-        // Generar un dataset sintético separable
+        // Generate separable synthetic dataset
         var dataset = new List<TimeSeriesSample>();
         for (int i = 0; i < 40; i++)
         {
-            // Clase 0: rampa ascendente
+            // Class 0: ascending ramp
             double[] v0 = new double[seqLen];
             for (int t = 0; t < seqLen; t++) v0[t] = (double)t / seqLen;
             dataset.Add(new TimeSeriesSample(0, seqLen, v0));
 
-            // Clase 1: rampa descendente
+            // Class 1: descending ramp
             double[] v1 = new double[seqLen];
             for (int t = 0; t < seqLen; t++) v1[t] = 1.0 - ((double)t / seqLen);
             dataset.Add(new TimeSeriesSample(1, seqLen, v1));
         }
 
-        // Evaluar antes de entrenar
+        // Evaluate before training
         int correctBefore = 0;
         foreach (var sample in dataset)
         {
@@ -36,10 +36,10 @@ public class BaselineTests
             if (pred == sample.Label) correctBefore++;
         }
 
-        // Entrenar con el algoritmo Adam implementado
+        // Train with Adam backpropagation
         transformer.Train(dataset, epochs: 10, lr: 0.01);
 
-        // Evaluar después de entrenar
+        // Evaluate after training
         int correctAfter = 0;
         foreach (var sample in dataset)
         {
@@ -48,7 +48,7 @@ public class BaselineTests
         }
 
         double accAfter = (double)correctAfter / dataset.Count;
-        Assert.True(accAfter >= 0.85, $"La precisión del Transformer después de entrenar debe ser >= 85%, obtenida: {accAfter * 100:F1}%");
+        Assert.True(accAfter >= 0.85, $"Transformer accuracy after training should be >= 85%, got: {accAfter * 100:F1}%");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class BaselineTests
         }
 
         double accAfter = (double)correctAfter / dataset.Count;
-        Assert.True(accAfter >= 0.85, $"La precisión de la LSTM después de entrenar debe ser >= 85%, obtenida: {accAfter * 100:F1}%");
+        Assert.True(accAfter >= 0.85, $"LSTM accuracy after training should be >= 85%, got: {accAfter * 100:F1}%");
     }
 
     [Fact]
@@ -100,10 +100,10 @@ public class BaselineTests
         double acc05 = (double)test05.Count(s => lstm.Forward(s.Values, s.Length).Prediction == s.Label) / test05.Count;
         double acc20 = (double)test20.Count(s => lstm.Forward(s.Values, s.Length).Prediction == s.Label) / test20.Count;
 
-        // El baseline recurrente aprende exitosamente la tarea a velocidad nominal (>= 90%)
+        // Recurrent baseline converges successfully at nominal speed (>= 90%)
         Assert.True(acc10 >= 0.90, $"LSTM nominal accuracy was {acc10:P1} (expected >= 90%)");
 
-        // Bajo dilatación temporal, el baseline Chronos colapsa hacia azar (< 40%)
+        // Under temporal dilation, Chronos baseline collapses toward chance level (< 40%)
         Assert.True(acc05 < 0.40 || acc20 < 0.40, $"LSTM should collapse under warp, but got 0.5x={acc05:P1}, 2.0x={acc20:P1}");
     }
 }

@@ -1,8 +1,8 @@
 namespace Kairos103.Core.Neurons;
 
 /// <summary>
-/// Neurona Leaky Integrate-and-Fire (LIF) asíncrona con umbral adaptativo.
-/// Registra el instante de primer disparo (first-spike arrival time).
+/// Asynchronous Leaky Integrate-and-Fire (LIF) neuron with adaptive dynamic threshold.
+/// Records the first-spike arrival timestamp.
 /// </summary>
 public sealed class LifNeuron
 {
@@ -23,8 +23,8 @@ public sealed class LifNeuron
     }
 
     /// <summary>
-    /// Integra una corriente de entrada en el instante t.
-    /// Retorna true si dispara un potencial de acción.
+    /// Integrates an incoming current input at the specified timestamp.
+    /// Returns true if an action potential is triggered.
     /// </summary>
     public bool Integrate(double current, double timestamp)
     {
@@ -41,7 +41,7 @@ public sealed class LifNeuron
     }
 
     /// <summary>
-    /// Aplica inhibición lateral adaptativa incrementando transitoriamente el umbral.
+    /// Applies adaptive lateral inhibition by transiently raising the firing threshold.
     /// </summary>
     public void Inhibit(double thresholdBoost)
     {
@@ -49,8 +49,8 @@ public sealed class LifNeuron
     }
 
     /// <summary>
-    /// Restablece el potencial de membrana y el estado de disparo.
-    /// Opcionalmente actualiza la tasa de decaimiento dinámica.
+    /// Resets the membrane potential and firing state.
+    /// Optionally updates the dynamic decay rate.
     /// </summary>
     public void Reset(double? dynamicDecayRate = null)
     {

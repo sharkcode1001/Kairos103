@@ -1,14 +1,14 @@
 namespace Kairos103.Core.Models;
 
 /// <summary>
-/// Clasificador lineal supervisado con aprendizaje discriminativo para vectores dispersos de rango.
+/// Supervised linear classifier with discriminative margin learning for sparse rank vectors.
 /// </summary>
 public sealed class PairwiseTrainer
 {
     public int ClassCount { get; }
     public int FeatureDim { get; }
 
-    // Matriz de pesos: ClassCount x FeatureDim
+    // Weight matrix: ClassCount x FeatureDim
     public double[][] Weights { get; }
 
     public PairwiseTrainer(int classCount, int featureDim)
@@ -23,7 +23,7 @@ public sealed class PairwiseTrainer
     }
 
     /// <summary>
-    /// Entrena el clasificador con descenso por gradiente estocástico sobre vectores dispersos.
+    /// Trains the classifier using stochastic gradient updates on sparse rank features.
     /// </summary>
     public void Train(IReadOnlyList<(double[] Features, int Label)> dataset, int epochs = 20, double lr = 0.05, Action<int, int>? onProgress = null)
     {
@@ -34,7 +34,7 @@ public sealed class PairwiseTrainer
             onProgress?.Invoke(ep + 1, epochs);
             foreach (var (features, label) in dataset)
             {
-                // Inferencia y cálculo de puntajes
+                // Inference and score computation
                 Array.Clear(scores);
                 for (int c = 0; c < ClassCount; c++)
                 {
@@ -49,7 +49,7 @@ public sealed class PairwiseTrainer
                     scores[c] = s;
                 }
 
-                // Predicción argmax
+                // Argmax prediction
                 int predicted = 0;
                 double maxScore = scores[0];
                 for (int c = 1; c < ClassCount; c++)
@@ -61,7 +61,7 @@ public sealed class PairwiseTrainer
                     }
                 }
 
-                // Actualización perceptrón / margen
+                // Perceptron / margin update
                 if (predicted != label)
                 {
                     for (int f = 0; f < FeatureDim; f++)
@@ -78,8 +78,8 @@ public sealed class PairwiseTrainer
     }
 
     /// <summary>
-    /// Infiere la clase predicha para un vector de características y cuenta las operaciones requeridas.
-    /// Para características one-hot/dispersas, solo se realizan sumas de acumulación.
+    /// Infers the predicted class for a feature vector and tallies required operations.
+    /// For sparse features, only integer additions and score accumulations are required.
     /// </summary>
     public (int Prediction, int AccumulateOps) Predict(double[] features)
     {

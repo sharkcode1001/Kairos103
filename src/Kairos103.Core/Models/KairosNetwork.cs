@@ -4,8 +4,8 @@ using Kairos103.Core.Neurons;
 namespace Kairos103.Core.Models;
 
 /// <summary>
-/// Red neuronal modular asíncrona Kairos103 con front-end de fase invariante al escalamiento temporal.
-/// Compuesta por M subregiones locales de N=4 neuronas LIF con inhibición lateral.
+/// Modular asynchronous neural network Kairos103 with time-warp invariant phase front-end.
+/// Composed of M local subregions of N=4 LIF neurons with lateral inhibition.
 /// </summary>
 public sealed class KairosNetwork
 {
@@ -14,10 +14,10 @@ public sealed class KairosNetwork
 
     public int SubregionCount { get; }
     public int TotalNeurons => SubregionCount * ModularSubregion.SubregionSize;
-    public int TotalFeatures => SubregionCount * 24; // 24 = 4! por subregión
+    public int TotalFeatures => SubregionCount * 24; // 24 = 4! per subregion
 
     private readonly ModularSubregion[] _subregions;
-    private readonly double[][] _projectionWeights; // Proyección aleatoria fija
+    private readonly double[][] _projectionWeights; // Fixed normalized random projection
 
     public KairosNetwork(int subregionCount = 16, int seed = 20261010)
     {
@@ -28,7 +28,7 @@ public sealed class KairosNetwork
             _subregions[m] = new ModularSubregion(baseThreshold: 0.75, decayRate: 0.90, lateralInhibitionBoost: 0.20);
         }
 
-        // Inicializar proyecciones aleatorias normalizadas fijas
+        // Initialize fixed normalized random projections
         var rng = new Random(seed);
         _projectionWeights = new double[TotalNeurons][];
         for (int i = 0; i < TotalNeurons; i++)
@@ -42,7 +42,7 @@ public sealed class KairosNetwork
                 sumSq += val * val;
             }
 
-            // Normalización L2
+            // L2 normalization
             double norm = Math.Sqrt(sumSq);
             if (norm > 1e-6)
             {
@@ -55,12 +55,12 @@ public sealed class KairosNetwork
     }
 
     /// <summary>
-    /// Procesa una señal continua 1D mediante un front-end de escala relativa.
-    /// Retorna el vector disperso de permutaciones de primer spike, el recuento de spikes y los MACs continuos del front-end.
+    /// Processes a continuous 1D signal through the relative-scale front-end.
+    /// Returns the sparse first-spike permutation feature vector, total spike count, and front-end continuous MACs.
     /// </summary>
     public (double[] Features, int TotalSpikes, long FrontEndMacs) ForwardDetailed(ReadOnlySpan<double> signal, int effectiveLength)
     {
-        // Resetear neuronas
+        // Reset neurons
         foreach (var sub in _subregions)
         {
             sub.Reset();
@@ -76,14 +76,14 @@ public sealed class KairosNetwork
         long frontEndMacs = 0;
         Span<double> currents = stackalloc double[ModularSubregion.SubregionSize];
 
-        // Barrido en fase normalizada u en [0, 1]
+        // Sweep in normalized phase u in [0, 1]
         for (int step = 0; step < TotalPhaseSteps; step++)
         {
             double phase = (double)step / (TotalPhaseSteps - 1);
 
             for (int m = 0; m < SubregionCount; m++)
             {
-                // Escala de ventana relativa al tamaño de la señal (10% a 28% para estabilidad espectral)
+                // Window scale relative to signal length (10% to 28% for spectral stability)
                 double scaleFraction = 0.10 + (0.18 * (m % 4) / 3.0);
                 double windowSize = Math.Max(2.0, length * scaleFraction);
 
@@ -119,7 +119,7 @@ public sealed class KairosNetwork
             }
         }
 
-        // Construir vector de características por código Lehmer ponderado por rango
+        // Build feature vector via Lehmer code weighted by firing fraction
         double[] features = new double[TotalFeatures];
 
         for (int m = 0; m < SubregionCount; m++)
@@ -132,7 +132,7 @@ public sealed class KairosNetwork
                 int[] order = _subregions[m].GetFirstSpikeOrder();
                 int lehmerIdx = CombinatorialTable.PermutationToLehmerIndex(order);
                 int featureOffset = (m * 24) + lehmerIdx;
-                // Ponderación proporcional a la fracción de neuronas que dispararon
+                // Weighting proportional to the fraction of fired neurons
                 features[featureOffset] = (double)firedCount / ModularSubregion.SubregionSize;
             }
         }
@@ -141,7 +141,7 @@ public sealed class KairosNetwork
     }
 
     /// <summary>
-    /// Sobrecarga compatible hacia atrás.
+    /// Backward-compatible overload.
     /// </summary>
     public (double[] Features, int TotalSpikes) Forward(ReadOnlySpan<double> signal, int effectiveLength)
     {

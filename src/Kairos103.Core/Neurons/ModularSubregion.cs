@@ -1,8 +1,8 @@
 namespace Kairos103.Core.Neurons;
 
 /// <summary>
-/// Subregión modular de N=4 neuronas con inhibición lateral acoplada.
-/// Mapea la dinámica de activación local a un orden relativo de llegada (t1 &lt; t2 &lt; t3 &lt; t4).
+/// Modular subregion of N=4 neurons with coupled lateral inhibition.
+/// Maps local activation dynamics to a relative arrival order (t1 &lt; t2 &lt; t3 &lt; t4).
 /// </summary>
 public sealed class ModularSubregion
 {
@@ -23,19 +23,19 @@ public sealed class ModularSubregion
     public IReadOnlyList<LifNeuron> Neurons => _neurons;
 
     /// <summary>
-    /// Procesa un paso temporal con un vector de 4 entradas de corriente.
-    /// Si una neurona dispara, eleva el umbral de sus compañeras mediante inhibición lateral.
+    /// Processes a single time step with a vector of 4 current inputs.
+    /// If a neuron fires, it raises the threshold of its peers via lateral inhibition.
     /// </summary>
     public void Step(ReadOnlySpan<double> currents, double timestamp)
     {
         if (currents.Length < SubregionSize)
-            throw new ArgumentException($"Se requieren al menos {SubregionSize} entradas.", nameof(currents));
+            throw new ArgumentException($"At least {SubregionSize} inputs required.", nameof(currents));
 
         for (int i = 0; i < SubregionSize; i++)
         {
             if (_neurons[i].Integrate(currents[i], timestamp))
             {
-                // Inhibición lateral al resto de neuronas en la subregión
+                // Lateral inhibition to remaining neurons in subregion
                 for (int j = 0; j < SubregionSize; j++)
                 {
                     if (i != j && !_neurons[j].HasFired)
@@ -48,7 +48,7 @@ public sealed class ModularSubregion
     }
 
     /// <summary>
-    /// Retorna los índices ordenados de las neuronas según su instante de primer disparo.
+    /// Returns the sorted indices of neurons ordered by their first-spike arrival timestamp.
     /// </summary>
     public int[] GetFirstSpikeOrder()
     {
@@ -58,7 +58,7 @@ public sealed class ModularSubregion
     }
 
     /// <summary>
-    /// Restablece todas las neuronas de la subregión, opcionalmente actualizando la tasa de decaimiento.
+    /// Resets all neurons in the subregion, optionally updating the decay rate.
     /// </summary>
     public void Reset(double? dynamicDecayRate = null)
     {

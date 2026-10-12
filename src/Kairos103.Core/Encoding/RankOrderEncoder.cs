@@ -1,15 +1,15 @@
 namespace Kairos103.Core.Encoding;
 
 /// <summary>
-/// Codificador de orden de llegada (Rank-Order Encoder).
-/// Convierte las permutaciones relativas de primer disparo en ponderaciones dispersas w_r = 1 / rango.
+/// Rank-Order Encoder.
+/// Converts relative first-spike arrival permutations into sparse weights: w_r = 1 / rank.
 /// </summary>
 public static class RankOrderEncoder
 {
     /// <summary>
-    /// Calcula los pesos de orden de llegada para una permutación dada.
-    /// El primer disparo (rango 1) recibe peso 1.0, el segundo 0.5 (1/2), el tercero 0.333 (1/3), etc.
-    /// Si un canal no disparó (tiempo infinito), su peso asignado es 0.0.
+    /// Computes rank-order weights for a given set of first-spike arrival times.
+    /// The first spike (rank 1) receives weight 1.0, the second 0.5 (1/2), the third 0.333 (1/3), etc.
+    /// Non-firing channels (infinite timestamp) receive a weight of 0.0.
     /// </summary>
     public static double[] EncodeRanks(IReadOnlyList<double> spikeTimes)
     {
@@ -37,7 +37,7 @@ public static class RankOrderEncoder
     }
 
     /// <summary>
-    /// Retorna la permutación de índices ordenados por tiempo de disparo.
+    /// Returns the permutation array of channel indices ordered by spike arrival timestamp.
     /// </summary>
     public static int[] GetPermutation(IReadOnlyList<double> spikeTimes)
     {

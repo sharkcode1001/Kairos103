@@ -1,10 +1,11 @@
 using System.Text;
+using Kairos103.Cli.Localization;
 using Kairos103.Cli.Reporting;
 
 namespace Kairos103.Cli.Commands;
 
 /// <summary>
-/// Comando para exportar reportes de ejecución en Markdown a la carpeta de salida designada.
+/// Command to export execution benchmark reports in Markdown and SVG format to the designated output folder.
 /// </summary>
 public static class ExportReportCommand
 {
@@ -18,21 +19,21 @@ public static class ExportReportCommand
             : new[] { targetDataset };
 
         var sb = new StringBuilder();
-        sb.AppendLine("# Informe Técnico Consolidado de Benchmarking: Kairos103");
+        sb.AppendLine("# Consolidated Technical Benchmark Report: Kairos103");
         sb.AppendLine();
-        sb.AppendLine($"* **Fecha:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
-        sb.AppendLine("* **Plataforma:** .NET 10.0 (C# asíncrono, Headless CLI)");
-        sb.AppendLine("* **Arquitectura:** Red Rank-Order con Subregiones N=4 acopladas");
+        sb.AppendLine($"* **Date:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        sb.AppendLine("* **Platform:** .NET 10.0 (Asynchronous C#, Headless CLI)");
+        sb.AppendLine("* **Architecture:** Modular Rank-Order Network with Coupled N=4 Subregions");
         sb.AppendLine();
-        sb.AppendLine("## 1. Resumen de Invarianza a Time-Warping");
-        sb.AppendLine("Los resultados experimentales confirman la estabilidad ante transformaciones temporales afines ($t' = \\alpha t + \\beta$).");
+        sb.AppendLine("## 1. Time-Warp Invariance Summary");
+        sb.AppendLine("Experimental results validate stability against affine temporal transformations ($t' = \\alpha t + \\beta$).");
         sb.AppendLine();
 
         for (int dsIdx = 0; dsIdx < datasetsToRun.Length; dsIdx++)
         {
             string ds = datasetsToRun[dsIdx];
             char sectionLetter = (char)('A' + dsIdx);
-            Console.WriteLine($"\n--- Ejecutando exportación para dataset: {ds.ToUpperInvariant()} ---");
+            Console.WriteLine(CliStrings.ExportStarting(ds.ToUpperInvariant()));
             var (factors, kairosAcc, transAcc, lstmAcc, effTracker) =
                 RunBenchmarkCommand.Execute(targetDataset: ds, fastMode: fast);
 
@@ -42,21 +43,21 @@ public static class ExportReportCommand
                 sb.AppendLine();
                 sb.AppendLine(AsciiPlotter.GenerateMarkdownTable(ds, factors, kairosAcc, transAcc, lstmAcc));
                 sb.AppendLine();
-                sb.AppendLine("#### Métricas de Eficiencia Computacional");
-                sb.AppendLine($"- **Kairos Front-End MACs (continuos):** {effTracker.TotalFrontEndMacs:N0}");
-                sb.AppendLine($"- **Kairos Spikes Discretos (eventos):** {effTracker.TotalSpikes:N0}");
-                sb.AppendLine($"- **Kairos Acumulaciones (clasificador):** {effTracker.TotalAccumulateOps:N0}");
+                sb.AppendLine("#### Computational Efficiency Metrics");
+                sb.AppendLine($"- **Kairos Front-End MACs (continuous):** {effTracker.TotalFrontEndMacs:N0}");
+                sb.AppendLine($"- **Kairos Discrete Spikes (events):** {effTracker.TotalSpikes:N0}");
+                sb.AppendLine($"- **Kairos Readout Accumulations:** {effTracker.TotalAccumulateOps:N0}");
                 sb.AppendLine($"- **Mini-Transformer MACs:** {effTracker.TotalTransformerMacs:N0}");
                 sb.AppendLine($"- **Simple LSTM MACs:** {effTracker.TotalLstmMacs:N0}");
-                sb.AppendLine($"- **Memoria Heap Asignada:** {effTracker.MemoryAllocatedBytes:N0} bytes");
+                sb.AppendLine($"- **Allocated Heap Memory:** {effTracker.MemoryAllocatedBytes:N0} bytes");
                 sb.AppendLine();
 
                 string dsSvgFile = Path.Combine(outputPath, $"WarpRobustness_{ds}.svg");
                 string dsSvg = GenerateSvgPlot(factors, kairosAcc, transAcc, lstmAcc, ds);
                 File.WriteAllText(dsSvgFile, dsSvg);
-                Console.WriteLine($"[OK] Gráfico vectorial generado: {dsSvgFile}");
+                Console.WriteLine(CliStrings.SvgGenerated(dsSvgFile));
 
-                // Si es synthetic o el único, generar también WarpRobustness.svg genérico
+                // Generate generic WarpRobustness.svg if synthetic or sole dataset
                 if (ds == "synthetic" || datasetsToRun.Length == 1)
                 {
                     File.WriteAllText(Path.Combine(outputPath, "WarpRobustness.svg"), dsSvg);
@@ -65,7 +66,7 @@ public static class ExportReportCommand
         }
 
         File.WriteAllText(reportFile, sb.ToString());
-        Console.WriteLine($"\n[OK] Informe consolidado generado en: {reportFile}");
+        Console.WriteLine(CliStrings.ReportGenerated(reportFile));
     }
 
     private static string GenerateSvgPlot(double[] factors, double[] kairosAcc, double[] transAcc, double[] lstmAcc, string datasetTitle = "synthetic")
@@ -75,14 +76,14 @@ public static class ExportReportCommand
         sb.AppendLine("  <rect width=\"100%\" height=\"100%\" fill=\"#1e1e24\" rx=\"8\"/>");
         sb.AppendLine($"  <text x=\"320\" y=\"32\" fill=\"#ffffff\" font-family=\"sans-serif\" font-size=\"16\" font-weight=\"bold\" text-anchor=\"middle\">Time-Warp Robustness ({datasetTitle.ToUpperInvariant()}): Accuracy vs Scale Factor</text>");
         
-        // Ejes
+        // Axes
         sb.AppendLine("  <line x1=\"80\" y1=\"300\" x2=\"580\" y2=\"300\" stroke=\"#666\" stroke-width=\"1\"/>");
         sb.AppendLine("  <line x1=\"80\" y1=\"60\" x2=\"80\" y2=\"300\" stroke=\"#666\" stroke-width=\"1\"/>");
         sb.AppendLine("  <text x=\"40\" y=\"70\" fill=\"#aaa\" font-family=\"sans-serif\" font-size=\"12\">100%</text>");
         sb.AppendLine("  <text x=\"40\" y=\"185\" fill=\"#aaa\" font-family=\"sans-serif\" font-size=\"12\">50%</text>");
         sb.AppendLine("  <text x=\"40\" y=\"300\" fill=\"#aaa\" font-family=\"sans-serif\" font-size=\"12\">0%</text>");
 
-        // Puntos y líneas si hay datos
+        // Polyline points if available
         if (factors.Length >= 2)
         {
             double minF = factors.First();
@@ -99,7 +100,7 @@ public static class ExportReportCommand
             sb.AppendLine($"  <polyline points=\"{PointsToSvg(lstmAcc)}\" fill=\"none\" stroke=\"#40c4ff\" stroke-width=\"2\" stroke-dasharray=\"2\"/>");
         }
 
-        // Leyenda
+        // Legend
         sb.AppendLine("  <circle cx=\"140\" cy=\"335\" r=\"5\" fill=\"#00e676\"/>");
         sb.AppendLine("  <text x=\"155\" y=\"339\" fill=\"#fff\" font-family=\"sans-serif\" font-size=\"12\">Kairos103</text>");
         sb.AppendLine("  <circle cx=\"280\" cy=\"335\" r=\"5\" fill=\"#ff5252\"/>");

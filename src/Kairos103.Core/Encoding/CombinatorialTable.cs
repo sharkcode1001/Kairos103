@@ -1,16 +1,16 @@
 namespace Kairos103.Core.Encoding;
 
 /// <summary>
-/// Mapeo combinatorio inyectivo B103.
-/// Implementa la conversión biyectiva entre permutaciones locales de tamaño N (por defecto N=4 -> 4! = 24)
-/// y un índice entero compacto (código de Lehmer en base factorial).
+/// Injective combinatorial mapping B103.
+/// Implements the bijective mapping between local permutations of size N (default N=4 -> 4! = 24)
+/// and a compact integer index (Lehmer code in factorial number system).
 /// </summary>
 public static class CombinatorialTable
 {
     private static readonly int[] Factorials = [1, 1, 2, 6, 24, 120, 720];
 
     /// <summary>
-    /// Convierte una permutación de elementos en su índice biyectivo de Lehmer (0 a N! - 1).
+    /// Converts a permutation of elements into its bijective Lehmer index (0 to N! - 1).
     /// </summary>
     public static int PermutationToLehmerIndex(ReadOnlySpan<int> permutation)
     {
@@ -38,7 +38,7 @@ public static class CombinatorialTable
     }
 
     /// <summary>
-    /// Reconstruye la permutación original a partir de su índice de Lehmer.
+    /// Reconstructs the original permutation from its Lehmer index.
     /// </summary>
     public static int[] LehmerIndexToPermutation(int index, int n = 4)
     {
@@ -62,7 +62,7 @@ public static class CombinatorialTable
     }
 
     /// <summary>
-    /// Retorna el total de estados combinatorios para subregiones de tamaño N (N! = 24 para N=4).
+    /// Returns the total combinatorial states for subregions of size N (N! = 24 for N=4).
     /// </summary>
     public static int GetPermutationCount(int n = 4) => Factorials[n];
 }

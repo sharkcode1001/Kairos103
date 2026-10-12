@@ -3,23 +3,23 @@ using System.Globalization;
 namespace Kairos103.Benchmarks.Data;
 
 /// <summary>
-/// Registro que representa una muestra de serie temporal con longitud variable y ceros de relleno.
+/// Record representing a time series sample with variable effective length and zero padding.
 /// </summary>
 public sealed record TimeSeriesSample(int Label, int Length, double[] Values);
 
 /// <summary>
-/// Lector y cargador de datasets CSV organizados para el protocolo de Kairos103.
+/// CSV dataset reader and loader designed for the Kairos103 benchmark protocol.
 /// </summary>
 public static class DatasetLoader
 {
     public static List<TimeSeriesSample> LoadCsv(string filePath)
     {
         if (!File.Exists(filePath))
-            throw new FileNotFoundException($"No se encontró el archivo de dataset: {filePath}", filePath);
+            throw new FileNotFoundException($"Dataset file not found: {filePath}", filePath);
 
         var samples = new List<TimeSeriesSample>();
         using var reader = new StreamReader(filePath);
-        string? header = reader.ReadLine(); // Saltar encabezado
+        string? header = reader.ReadLine(); // Skip header row
 
         string? line;
         while ((line = reader.ReadLine()) != null)

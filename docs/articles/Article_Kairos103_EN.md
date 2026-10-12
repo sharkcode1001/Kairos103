@@ -6,6 +6,8 @@
 * **ORCID:** [0009-0007-2047-9345](https://orcid.org/0009-0007-2047-9345)  
 * **Ecosystem:** .NET 10 | Neuromorphic Computing | Event-Driven AI
 
+> **Language / Idioma:** **English** | [Español (Spanish)](Articulo_Kairos103_ES.md)
+
 ---
 
 ## Executive Summary

@@ -3,12 +3,12 @@ using System.Text;
 namespace Kairos103.Cli.Reporting;
 
 /// <summary>
-/// Generador de gráficos ASCII para terminal y exportación a tablas Markdown.
+/// ASCII chart renderer for terminal and Markdown table exporter.
 /// </summary>
 public static class AsciiPlotter
 {
     /// <summary>
-    /// Renderiza un gráfico de barras comparativo en la consola.
+    /// Renders a comparative bar chart in the console.
     /// </summary>
     public static void RenderBar(string label, double value, double maxValue = 1.0, int width = 30)
     {
@@ -18,7 +18,7 @@ public static class AsciiPlotter
     }
 
     /// <summary>
-    /// Genera una tabla comparativa en formato Markdown.
+    /// Generates a comparative benchmark table in Markdown format (in English).
     /// </summary>
     public static string GenerateMarkdownTable(
         string datasetName,
@@ -28,9 +28,9 @@ public static class AsciiPlotter
         double[] lstmAcc)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"### Resultados de Benchmark: {datasetName}");
+        sb.AppendLine($"### Benchmark Results: {datasetName}");
         sb.AppendLine();
-        sb.AppendLine("| Factor Warp | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |");
+        sb.AppendLine("| Warp Factor | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |");
         sb.AppendLine("|:-----------:|:----------------:|:----------------:|:-----------:|");
 
         for (int i = 0; i < factors.Length; i++)

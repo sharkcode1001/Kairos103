@@ -1,96 +1,99 @@
-# Datasets de Benchmark y Estrés Temporal (WarpStress v1)
+# Benchmark and Time-Warp Stress Datasets (WarpStress v1)
 
-Este directorio contiene los conjuntos de datos experimentales utilizados para validar la **invarianza estricta al escalamiento temporal (*time-warping*)** de la arquitectura **Kairos103** frente a baselines continuos (Transformers y LSTMs).
+> **Language / Idioma:** **English** | [Español (Spanish)](README_ES.md)
+
+This directory contains the experimental datasets used to validate the **strict time-warp invariance** of the **Kairos103** architecture against continuous deep learning baselines (Transformers and LSTMs).
 
 ---
 
-## 1. Estructura de Directorios
+## 1. Directory Structure
 
 ```text
 datasets/
-├── README.md               # Esta documentación técnica
-├── synthetic/              # Dataset 1D Sintético (WarpStress 1D)
+├── README.md               # Technical documentation in English
+├── README_ES.md            # Technical documentation in Spanish
+├── synthetic/              # Synthetic 1D Dataset (WarpStress 1D)
 │   ├── warpstress_train.csv
 │   ├── warpstress_test_0.5x.csv
 │   ├── warpstress_test_0.8x.csv
 │   ├── warpstress_test_1.0x.csv
 │   ├── warpstress_test_1.2x.csv
 │   └── warpstress_test_2.0x.csv
-├── ecg/                    # Dataset Biomédico Real (MIT-BIH Arrhythmia Database)
+├── ecg/                    # Real Biomedical Dataset (MIT-BIH Arrhythmia Database)
 │   ├── ecg_train.csv
 │   ├── ecg_test_0.5x.csv
 │   ├── ecg_test_0.8x.csv
 │   ├── ecg_test_1.0x.csv
 │   ├── ecg_test_1.2x.csv
 │   └── ecg_test_2.0x.csv
-└── generators/             # Scripts deterministas en Python para regeneración de datos
-    ├── gen_warpstress.py   # Generador del dataset sintético (semilla 20261010)
-    ├── gen_ecg.py          # Extractor y remuestreador MIT-BIH (semilla 20261010)
-    ├── vista_previa.py     # Script generador de la inspección visual
-    └── vista_previa.png    # Gráfica de formas de onda por clase y velocidad
+└── generators/             # Deterministic Python scripts for dataset generation
+    ├── gen_warpstress.py   # Synthetic dataset generator (seed 20261010)
+    ├── gen_ecg.py          # MIT-BIH extractor and resampler (seed 20261010)
+    ├── preview.py          # Visual inspection plotting script
+    └── preview.png         # Waveform chart across classes and scale factors
 ```
 
 ---
 
-## 2. Descripción de los Datasets
+## 2. Dataset Descriptions
 
-### A. Dataset Sintético (`datasets/synthetic/`)
-* **Naturaleza:** 4 clases de señales continuas 1D sintéticas donde la información reside exclusivamente en la **morfología y secuencia relativa de los eventos**, no en su duración métrica absoluta:
-  * **Clase 0:** Dos pulsos gaussianos: frecuencia grave primero ($4\,\text{Hz}$), agudo después ($13\,\text{Hz}$).
-  * **Clase 1:** Dos pulsos gaussianos: agudo primero ($13\,\text{Hz}$), grave después ($4\,\text{Hz}$).
-  * **Clase 2:** Barrido chirp ascendente ($3\,\text{Hz} \to 15\,\text{Hz}$).
-  * **Clase 3:** Barrido chirp descendente ($15\,\text{Hz} \to 3\,\text{Hz}$).
-* **Longitud base ($1.0\times$):** 128 muestras.
-* **Longitud máxima con padding:** 256 columnas ($m_0 \dots m_{255}$).
-* **Partición:**
-  * **Train:** 1,600 ejemplos (400 por clase).
-  * **Test por factor:** 800 ejemplos (200 por clase) para cada uno de los factores ($0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$).
+### A. Synthetic Dataset (`datasets/synthetic/`)
+* **Nature:** 4 classes of synthetic continuous 1D signals where information resides exclusively in the **morphology and relative sequence of events**, rather than absolute metric duration:
+  * **Class 0:** Two Gaussian pulses: low frequency first ($4\,\text{Hz}$), high frequency second ($13\,\text{Hz}$).
+  * **Class 1:** Two Gaussian pulses: high frequency first ($13\,\text{Hz}$), low frequency second ($4\,\text{Hz}$).
+  * **Class 2:** Upward chirp sweep ($3\,\text{Hz} \to 15\,\text{Hz}$).
+  * **Class 3:** Downward chirp sweep ($15\,\text{Hz} \to 3\,\text{Hz}$).
+* **Base Length ($1.0\times$):** 128 samples.
+* **Maximum Padded Length:** 256 columns ($m_0 \dots m_{255}$).
+* **Partitions:**
+  * **Train:** 1,600 samples (400 per class).
+  * **Test per Factor:** 800 samples (200 per class) for each factor ($0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$).
 
-### B. Dataset Real ECG (`datasets/ecg/`)
-* **Naturaleza:** Latidos reales extraídos de la base de datos **MIT-BIH Arrhythmia Database** (PhysioNet).
-  * **Clase 0:** Latido normal (**N**) proveniente de registros 100, 208, 213, 221.
-  * **Clase 1:** Latido ventricular prematuro (**V**) proveniente de registros 207, 208, 213, 221.
-* **Segmentación:** Ventanas de $0.5\,\text{s}$ (180 muestras a $360\,\text{Hz}$) centradas en el pico R, canal 0, con normalización por su propio valor pico.
-* **Longitud base ($1.0\times$):** 180 muestras.
-* **Longitud máxima con padding:** 360 columnas ($m_0 \dots m_{359}$).
-* **Partición:**
-  * **Train:** 800 ejemplos (400 por clase).
-  * **Test por factor:** 400 ejemplos (200 por clase) para cada uno de los factores ($0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$).
+### B. Real ECG Dataset (`datasets/ecg/`)
+* **Nature:** Real heartbeats extracted from the **MIT-BIH Arrhythmia Database** (PhysioNet).
+  * **Class 0:** Normal beat (**N**) from records 100, 208, 213, 221.
+  * **Class 1:** Premature ventricular contraction (**V**) from records 207, 208, 213, 221.
+* **Segmentation:** $0.5\,\text{s}$ windows (180 samples at $360\,\text{Hz}$) centered on the R-peak, channel 0, normalized by each beat's peak value.
+* **Base Length ($1.0\times$):** 180 samples.
+* **Maximum Padded Length:** 360 columns ($m_0 \dots m_{359}$).
+* **Partitions:**
+  * **Train:** 800 samples (400 per class).
+  * **Test per Factor:** 400 samples (200 per class) for each factor ($0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$).
 
 ---
 
-## 3. Formato de Archivos (CSV)
+## 3. File Format (CSV)
 
-Todos los archivos CSV comparten una estructura idéntica normalizada:
+All CSV files follow an identical standardized structure:
 
 ```csv
-etiqueta,longitud,m0,m1,m2,...,mN
+label,length,m0,m1,m2,...,mN
 ```
 
-* `etiqueta` ($int$): Clase de la señal ($0$ a $3$ en sintético; $0$ a $1$ en ECG).
-* `longitud` ($int$): Cantidad de muestras efectivas antes de la terminación de la señal (varía según el factor de velocidad: $64$ a $256$ en sintético, $90$ a $360$ en ECG).
-* `m0, m1, ...`: Valores continuos normalizados de la señal. Todo valor posterior al índice `longitud` contiene `0.0` (cero relleno / padding).
+* `label` ($int$): Signal class ($0$ to $3$ in synthetic; $0$ to $1$ in ECG).
+* `length` ($int$): Number of effective samples before signal termination (varies by speed factor: $64$ to $256$ in synthetic, $90$ to $360$ in ECG).
+* `m0, m1, ...`: Continuous normalized signal amplitude values. Indices beyond `length` are zero-padded ($0.0$).
 
 ---
 
-## 4. Protocolo Experimental y Factores de Time-Warping
+## 4. Experimental Protocol and Time-Warping Factors
 
-1. **Entrenamiento ($1.0\times$ Nominal):**
-   * Se entrena estrictamente con señales a velocidad nominal ($1.0\times$), con ruido leve de amplitud ($\sigma = 0.03$) y **sin jitter temporal**.
-   * No se aplica aumento de datos con warp (*data augmentation*) para evaluar la invariancia intrínseca de la arquitectura.
-2. **Evaluación de Estrés ($0.5\times$ a $2.0\times$):**
-   * Factores evaluados: $0.5\times$ (doble de duración/lenta), $0.8\times$, $1.0\times$ (control), $1.2\times$, $2.0\times$ (doble de velocidad/rápida).
-   * Todos los sets de test incorporan adición de jitter temporal monótono ($\Delta t$) y ruido gaussiano de amplitud ($\sigma = 0.05$).
-   * El test $1.0\times$ actúa como grupo de control para aislar el impacto del jitter frente al impacto del escalamiento temporal.
+1. **Training ($1.0\times$ Nominal):**
+   * Trained strictly with nominal speed signals ($1.0\times$), slight amplitude noise ($\sigma = 0.03$), and **zero temporal jitter**.
+   * No time-warp data augmentation is applied to evaluate intrinsic architectural invariance.
+2. **Stress Evaluation ($0.5\times$ to $2.0\times$):**
+   * Evaluated factors: $0.5\times$ (twice the duration/slow), $0.8\times$, $1.0\times$ (control), $1.2\times$, $2.0\times$ (twice the speed/fast).
+   * All test sets include monotonic temporal jitter ($\Delta t$) and Gaussian amplitude noise ($\sigma = 0.05$).
+   * The $1.0\times$ test condition serves as a control group to isolate jitter impact from temporal scaling impact.
 
 ---
 
-## 5. Criterios de Éxito y Parada
+## 5. Success and Stopping Criteria
 
-* **Éxito:**
-  1. Kairos103 mantiene su precisión nominal ($1.0\times \pm 3\%$) a lo largo de los 5 factores en ambos datasets.
-  2. Los modelos baseline continuos (Transformer / LSTM) experimentan una degradación $\ge 10\%$ en $0.5\times$ o $2.0\times$.
-  3. Kairos103 consume $\le 1/10$ del cómputo por inferencia respecto al baseline.
-* **Parada / Rechazo:**
-  * Si Kairos103 no mantiene estabilidad plana en su precisión, la hipótesis se rechaza sin alterar artificialmente los baselines.
-  * Si el baseline no degrada ante dilatación temporal, no se prosigue la comparativa sin redefinición formal.
+* **Success:**
+  1. Kairos103 maintains nominal accuracy ($1.0\times \pm 3\%$) across all 5 scale factors on both datasets.
+  2. Continuous baseline models (Transformer / LSTM) suffer an accuracy drop $\ge 10\%$ at $0.5\times$ or $2.0\times$.
+  3. Kairos103 consumes $\le 1/10$ of the compute per decision compared to the baseline.
+* **Stopping / Rejection:**
+  * If Kairos103 fails to maintain flat accuracy stability, the hypothesis is rejected without artificially altering baselines.
+  * If baselines do not degrade under temporal dilation, the comparison is not pursued without formal redefinition.

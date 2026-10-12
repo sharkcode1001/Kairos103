@@ -6,6 +6,8 @@
 * **ORCID:** [0009-0007-2047-9345](https://orcid.org/0009-0007-2047-9345)  
 * **Ecosistema:** .NET 10 | Computación Neuromórfica | Aprendizaje Orientado a Eventos
 
+> **Idioma / Language:** [English (Inglés)](Article_Kairos103_EN.md) | **Español**
+
 ---
 
 ## Resumen Ejecutivo

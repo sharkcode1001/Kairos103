@@ -1,47 +1,49 @@
-# Fundamentos Matemáticos: Espacios de Permutación e Invarianza Afín
+# Mathematical Foundations: Permutation Spaces and Affine Invariance
 
-## 1. El Teorema de Invarianza por Escalamiento Temporal
+> **Language / Idioma:** **English** | [Español (Spanish)](MathTheory_ES.md)
 
-Sea un sistema dinámico asíncrono con $n$ canales neuronales sensoriales. Para un patrón de estímulo dado $S(t)$, definimos el conjunto de tiempos de arribo del primer potencial de acción (*first-spike arrival times*) como:
+## 1. The Time-Warp Invariance Theorem
+
+Let an asynchronous dynamic system consist of $n$ sensory neural channels. For a given stimulus pattern $S(t)$, we define the set of first action potential arrival times (*first-spike arrival times*) as:
 
 $$T = \{t_1, t_2, \dots, t_n\}, \quad t_i \in \mathbb{R}^+$$
 
-### 1.1. Transformación Afín Monótona Creciente (Time-Warping)
-Consideremos una distorsión temporal global donde la señal se acelera, retarda o desplaza según:
+### 1.1. Monotonic Increasing Affine Transformation (Time-Warping)
+Consider a global temporal distortion where the signal accelerates, decelerates, or shifts according to:
 
 $$t'_i = g(t_i) = \alpha \cdot t_i + \beta, \quad \alpha > 0, \; \beta \in \mathbb{R}$$
 
-Puesto que la derivada de $g$ es estrictamente positiva:
+Because the derivative of $g$ is strictly positive:
 $$\frac{dg}{dt} = \alpha > 0$$
 
-La función $g$ es una biyección estrictamente monótona creciente en $\mathbb{R}$. Por consiguiente:
+The function $g$ is a strictly order-preserving bijection on $\mathbb{R}$. Consequently:
 
 $$t_i < t_j \iff \alpha \cdot t_i + \beta < \alpha \cdot t_j + \beta \iff t'_i < t'_j \quad \forall i, j \in \{1, \dots, n\}$$
 
-### 1.2. Invarianza de la Permutación Inducida
-Definimos la permutación de disparo $\sigma \in S_n$ como la biyección que ordena los canales por tiempo de llegada:
+### 1.2. Invariance of the Induced Permutation
+We define the firing permutation $\sigma \in S_n$ as the bijection ordering the channels by arrival time:
 
 $$t_{\sigma(1)} \le t_{\sigma(2)} \le \dots \le t_{\sigma(n)}$$
 
-Dado que el orden relativo se preserva idéntico para cualquier $\alpha > 0$ y $\beta \in \mathbb{R}$:
+Since the relative order remains identical for any $\alpha > 0$ and $\beta \in \mathbb{R}$:
 
 $$\sigma(T') \equiv \sigma(T)$$
 
-La representación discreta extraída en el diccionario de rangos es **formal e idénticamente invariante al factor de compresión o dilatación temporal $\alpha$**.
+The discrete representation extracted by the rank dictionary is **formally and identically invariant to temporal compression or dilation factor $\alpha$**.
 
-### 1.3. Condición de Delimitación Temporal (Bounded-Epoch Domain)
-El teorema es estrictamente válido sobre ráfagas sensoriales o épocas acotadas donde el evento físico está delimitado por un intervalo de activación $[t_{\text{inicio}}, t_{\text{fin}}]$. La proyección del front-end mapea el soporte temporal de la señal a una coordenada de fase adimensional $\tau = \frac{t - t_{\text{inicio}}}{t_{\text{fin}} - t_{\text{inicio}}} \in [0, 1]$. La invarianza afín se manifiesta de forma pura en cualquier señal donde la morfología interna y la precedencia causal determinen la clase, independientemente de la velocidad de emisión del evento.
+### 1.3. Bounded-Epoch Domain Condition
+The theorem is strictly valid over sensory bursts or bounded epochs where the physical event is delimited by an activation interval $[t_{\text{start}}, t_{\text{end}}]$. The front-end projection maps the temporal support of the signal onto a dimensionless phase coordinate $\tau = \frac{t - t_{\text{start}}}{t_{\text{end}} - t_{\text{start}}} \in [0, 1]$. Affine invariance manifests in its purest form across any signal where internal morphology and causal precedence determine class membership, regardless of event emission speed.
 
 ---
 
-## 2. Particionamiento Modular en Subregiones $N=4$
+## 2. Modular Partitioning into $N=4$ Subregions
 
-El espacio combinatorio de permutaciones totales para $n$ canales es $|S_n| = n!$.
-Para valores grandes de $n$, $n!$ crece con severidad exponencial y la sensibilidad al *jitter* de alta frecuencia se incrementa debido a colisiones en canales temporalmente próximos.
+The full combinatorial permutation space for $n$ channels is $|S_n| = n!$.
+For large $n$, $n!$ exhibits severe combinatorial explosion, and susceptibility to high-frequency *jitter* escalates due to collisions among temporally close channels.
 
-Kairos103 descompone el espacio en $M$ subregiones modulares locales independientes de tamaño fijo $N = 4$:
+Kairos103 decomposes the space into $M$ independent local modular subregions of fixed size $N = 4$:
 
-* **Capacidad local:** Cada subregión produce $4! = 24$ configuraciones posibles de primer spike.
-* **Capacidad del producto cartesiano:** Para $M$ módulos:
+* **Local capacity:** Each subregion produces $4! = 24$ possible first-spike configurations.
+* **Cartesian product capacity:** For $M$ modules:
   $$|\Omega| = (4!)^M = 24^M$$
-* **Estabilidad frente a jitter:** La inhibición lateral acoplada localmente dentro de cada cuarteto garantiza que solo las neuronas con activación predominante fijen el orden, filtrando el ruido de fase con robustez superior al $97\%$.
+* **Jitter robustness:** Locally coupled lateral inhibition within each quartet ensures that only neurons with dominant activation fix the firing order, filtering phase noise with over $97\%$ stability.

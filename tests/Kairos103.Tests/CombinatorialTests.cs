@@ -14,7 +14,7 @@ public class CombinatorialTests
 
         var seenIndices = new HashSet<int>();
 
-        // Generar todas las 24 permutaciones posibles de 0, 1, 2, 3
+        // Generate all 24 possible permutations of {0, 1, 2, 3}
         var allPermutations = GenerateAllPermutations([0, 1, 2, 3]);
         Assert.Equal(24, allPermutations.Count);
 
@@ -22,18 +22,18 @@ public class CombinatorialTests
         {
             int index = CombinatorialTable.PermutationToLehmerIndex(p);
 
-            // Debe estar en el rango [0, 23]
+            // Must fall in range [0, 23]
             Assert.InRange(index, 0, 23);
 
-            // Debe ser inyectivo (único)
-            Assert.True(seenIndices.Add(index), $"Índice colisionado: {index}");
+            // Must be injective (unique)
+            Assert.True(seenIndices.Add(index), $"Collision at index: {index}");
 
-            // Debe ser invertible (biyectivo)
+            // Must be invertible (bijective)
             int[] reconstructed = CombinatorialTable.LehmerIndexToPermutation(index, n);
             Assert.Equal(p, reconstructed);
         }
 
-        // Se cubrieron todos los 24 enteros posibles
+        // All 24 integers covered
         Assert.Equal(24, seenIndices.Count);
     }
 

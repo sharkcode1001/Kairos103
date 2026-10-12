@@ -1,7 +1,7 @@
 namespace Kairos103.Benchmarks.Metrics;
 
 /// <summary>
-/// Métricas de robustez y análisis de degradación frente a dilatación temporal (Time-Warp).
+/// Robustness metrics and degradation analysis under time-warping stress.
 /// </summary>
 public sealed class RobustnessMetrics
 {
@@ -17,7 +17,7 @@ public sealed class RobustnessMetrics
     }
 
     /// <summary>
-    /// Calcula la degradación máxima de precisión con respecto a la condición de control nominal (1.0x).
+    /// Computes the maximum accuracy degradation relative to the nominal control condition (1.0x).
     /// </summary>
     public double CalculateMaxDegradation()
     {
@@ -38,7 +38,7 @@ public sealed class RobustnessMetrics
     }
 
     /// <summary>
-    /// Verifica si se cumple el criterio de invarianza plana (variación menor o igual a un umbral dado, p. ej. 3%).
+    /// Checks whether the flat invariance criterion is satisfied (accuracy drop within allowed threshold, e.g. 3%).
     /// </summary>
     public bool MeetsFlatnessCriterion(double maxAllowedDrop = 0.03)
     {

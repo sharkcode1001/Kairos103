@@ -1,7 +1,7 @@
 namespace Kairos103.Benchmarks.Generators;
 
 /// <summary>
-/// Inyector de perturbaciones estocásticas: jitter temporal monótono y ruido de amplitud gaussiano.
+/// Stochastic perturbation injector: monotonic temporal jitter and Gaussian amplitude noise.
 /// </summary>
 public sealed class NoiseInjector
 {
@@ -13,7 +13,7 @@ public sealed class NoiseInjector
     }
 
     /// <summary>
-    /// Genera una variable aleatoria con distribución normal N(0, stdDev).
+    /// Generates a normally distributed random variable N(0, stdDev).
     /// </summary>
     public double NextGaussian(double stdDev)
     {
@@ -24,7 +24,7 @@ public sealed class NoiseInjector
     }
 
     /// <summary>
-    /// Aplica ruido de amplitud aditivo gaussiano.
+    /// Adds additive Gaussian amplitude noise to the signal.
     /// </summary>
     public double[] AddAmplitudeNoise(ReadOnlySpan<double> signal, double stdDev)
     {
@@ -37,7 +37,7 @@ public sealed class NoiseInjector
     }
 
     /// <summary>
-    /// Remuestrea una señal agregando jitter temporal monótono a la grilla de muestreo.
+    /// Resamples a signal by applying monotonic temporal jitter across the sampling grid.
     /// </summary>
     public double[] ApplyMonotonicJitter(ReadOnlySpan<double> signal, double jitterStdDev, double amplitudeNoiseStdDev)
     {
@@ -48,12 +48,12 @@ public sealed class NoiseInjector
         for (int i = 0; i < length; i++)
         {
             double perturbed = i + NextGaussian(jitterStdDev);
-            if (perturbed < maxTime) perturbed = maxTime; // Monotonía estricta
+            if (perturbed < maxTime) perturbed = maxTime; // Strict monotonicity
             maxTime = perturbed;
             grid[i] = Math.Clamp(perturbed, 0.0, length - 1.0);
         }
 
-        // Interpolación lineal sobre la grilla con jitter
+        // Linear interpolation over the jittered grid
         double[] result = new double[length];
         for (int i = 0; i < length; i++)
         {

@@ -3,22 +3,22 @@ using Kairos103.Benchmarks.Data;
 namespace Kairos103.Benchmarks.Baselines;
 
 /// <summary>
-/// Baseline de red recurrente LSTM clásica (Long Short-Term Memory).
-/// Cuenta con entrenamiento por retropropagación a través del tiempo (BPTT + Adam) en C# puro sin librerías externas.
-/// Procesa secuencias paso a paso actualizando celdas de memoria y compuertas (i, f, o, g).
+/// Classic Long Short-Term Memory (LSTM) recurrent neural network baseline.
+/// Features Backpropagation Through Time (BPTT + Adam optimizer) in pure C# without external dependencies.
+/// Processes time series step-by-step updating hidden states and gates (i, f, o, g).
 /// </summary>
 public sealed class SimpleLstm
 {
     public int HiddenDim { get; }
     public int NumClasses { get; }
 
-    private readonly double[,] _wX; // Entrada -> Compuertas (4 * HiddenDim x 1)
-    private readonly double[,] _wH; // Oculto -> Compuertas (4 * HiddenDim x HiddenDim)
+    private readonly double[,] _wX; // Input -> Gates (4 * HiddenDim x 1)
+    private readonly double[,] _wH; // Hidden -> Gates (4 * HiddenDim x HiddenDim)
     private readonly double[] _b;
     private readonly double[,] _classifier;
     private readonly double[] _classifierBias;
 
-    // Momentos Adam
+    // Adam optimizer moments
     private readonly double[,] _mX, _vX;
     private readonly double[,] _mH, _vH;
     private readonly double[] _mB, _vB;
@@ -49,7 +49,7 @@ public sealed class SimpleLstm
     }
 
     /// <summary>
-    /// Infiere sobre una serie temporal paso a paso y contabiliza las operaciones MAC requeridas.
+    /// Infers over a temporal sequence step-by-step and tallies required MAC operations.
     /// </summary>
     public (int Prediction, long MacCount) Forward(ReadOnlySpan<double> signal, int length)
     {
@@ -66,12 +66,10 @@ public sealed class SimpleLstm
             double x = signal[t];
             double[] gates = new double[gatesDim];
 
-            // W_x * x + W_h * h + b
             for (int g = 0; g < gatesDim; g++)
             {
                 gates[g] = (_wX[g, 0] * x) + _b[g];
                 macs++;
-
                 for (int j = 0; j < HiddenDim; j++)
                 {
                     gates[g] += _wH[g, j] * h[j];
@@ -79,21 +77,19 @@ public sealed class SimpleLstm
                 }
             }
 
-            // Compuertas: i, f, o, g
             for (int j = 0; j < HiddenDim; j++)
             {
-                double iGate = Sigmoid(gates[j]);
-                double fGate = Sigmoid(gates[HiddenDim + j]);
-                double oGate = Sigmoid(gates[(2 * HiddenDim) + j]);
-                double gCandidate = Math.Tanh(gates[(3 * HiddenDim) + j]);
+                double ig = Sigmoid(gates[j]);
+                double fg = Sigmoid(gates[HiddenDim + j]);
+                double og = Sigmoid(gates[(2 * HiddenDim) + j]);
+                double gg = Math.Tanh(gates[(3 * HiddenDim) + j]);
 
-                c[j] = (fGate * c[j]) + (iGate * gCandidate);
-                h[j] = oGate * Math.Tanh(c[j]);
-                macs += 3;
+                c[j] = (fg * c[j]) + (ig * gg);
+                h[j] = og * Math.Tanh(c[j]);
             }
         }
 
-        // Clasificación final sobre último estado h
+        // Linear classifier over final hidden state
         double[] logits = new double[NumClasses];
         for (int k = 0; k < NumClasses; k++)
         {
@@ -106,13 +102,14 @@ public sealed class SimpleLstm
             logits[k] = sum;
         }
 
+        // Argmax
         int best = 0;
-        double maxVal = logits[0];
+        double maxL = logits[0];
         for (int k = 1; k < NumClasses; k++)
         {
-            if (logits[k] > maxVal)
+            if (logits[k] > maxL)
             {
-                maxVal = logits[k];
+                maxL = logits[k];
                 best = k;
             }
         }
@@ -121,7 +118,7 @@ public sealed class SimpleLstm
     }
 
     /// <summary>
-    /// Entrena la red LSTM usando BPTT (Backpropagation Through Time) con optimizador Adam en C# puro.
+    /// Trains the LSTM network using Backpropagation Through Time (BPTT) with Adam optimizer.
     /// </summary>
     public void Train(IReadOnlyList<TimeSeriesSample> dataset, int epochs = 15, double lr = 0.005, Action<int, int>? onProgress = null)
     {
@@ -135,7 +132,7 @@ public sealed class SimpleLstm
                 int seqLen = Math.Min(sample.Length, sample.Values.Length);
                 if (seqLen <= 0) continue;
 
-                // 1. Forward pass almacenando trayectorias temporales
+                // 1. Forward pass storing temporal trajectories
                 double[][] hHist = new double[seqLen + 1][];
                 double[][] cHist = new double[seqLen + 1][];
                 hHist[0] = new double[HiddenDim];
@@ -190,7 +187,7 @@ public sealed class SimpleLstm
                     cHist[t + 1] = cNext;
                 }
 
-                // Salida y Softmax
+                // Output and Softmax
                 double[] hFinal = hHist[seqLen];
                 double[] logits = new double[NumClasses];
                 double maxL = double.NegativeInfinity;
@@ -256,27 +253,27 @@ public sealed class SimpleLstm
                         double tanhC = Math.Tanh(cCurr[j]);
                         double dTanhC = 1.0 - (tanhC * tanhC);
 
-                        // Gradiente de compuerta o
+                        // Output gate gradient
                         double dO = dH[j] * tanhC;
                         dGates[(2 * HiddenDim) + j] = dO * og * (1.0 - og);
 
-                        // Acumular gradiente en celda c
+                        // Accumulate gradient in cell state c
                         dC[j] += dH[j] * og * dTanhC;
 
-                        // Gradiente de compuerta f
+                        // Forget gate gradient
                         double dF = dC[j] * cPrev[j];
                         dGates[HiddenDim + j] = dF * fg * (1.0 - fg);
 
-                        // Gradiente de compuerta i
+                        // Input gate gradient
                         double dI = dC[j] * gg;
                         dGates[j] = dI * ig * (1.0 - ig);
 
-                        // Gradiente de candidato g
+                        // Candidate cell gradient
                         double dG = dC[j] * ig;
                         dGates[(3 * HiddenDim) + j] = dG * (1.0 - (gg * gg));
                     }
 
-                    // Acumular gradientes para pesos
+                    // Accumulate weight gradients
                     for (int g = 0; g < gatesDim; g++)
                     {
                         double dg = dGates[g];
@@ -288,7 +285,7 @@ public sealed class SimpleLstm
                         }
                     }
 
-                    // Propagación hacia t-1
+                    // Propagate to t-1
                     Array.Clear(dH, 0, HiddenDim);
                     for (int j = 0; j < HiddenDim; j++)
                     {
@@ -304,7 +301,7 @@ public sealed class SimpleLstm
                     }
                 }
 
-                // 3. Actualización Adam
+                // 3. Adam parameter update
                 _adamStep++;
                 ApplyAdam(_classifier, gradCls, _mCls, _vCls, lr);
                 ApplyAdam1D(_classifierBias, gradBiasCls, _mBias, _vBias, lr);

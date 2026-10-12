@@ -1,23 +1,23 @@
 using Kairos103.Benchmarks.Generators;
+using Kairos103.Cli.Localization;
 using Kairos103.Cli.Reporting;
 using Kairos103.Core.Models;
 
 namespace Kairos103.Cli.Commands;
 
 /// <summary>
-/// Comando para realizar barridos de jitter temporal progresivo.
+/// Command to perform progressive temporal jitter sweeps on Kairos103.
 /// </summary>
 public static class SweepNoiseCommand
 {
     public static void Execute(double maxJitter = 0.05, double step = 0.01)
     {
-        Console.WriteLine($"=== KAIROS103 JITTER STABILITY SWEEP ===");
-        Console.WriteLine($"Jitter Máximo: {maxJitter:F3} | Paso: {step:F3}\n");
+        Console.WriteLine(CliStrings.JitterSweepHeader(maxJitter, step));
 
         var network = new KairosNetwork(subregionCount: 16);
         var trainer = new PairwiseTrainer(4, network.TotalFeatures);
 
-        // Entrenar con señales nominales
+        // Train on nominal signals
         var trainList = new List<(double[] Features, int Label)>();
         for (int c = 0; c < 4; c++)
         {
@@ -30,8 +30,7 @@ public static class SweepNoiseCommand
         }
         trainer.Train(trainList, epochs: 20);
 
-        Console.WriteLine($"Jitter (stdDev) | Precisión Kairos103");
-        Console.WriteLine($"----------------|--------------------");
+        Console.WriteLine(CliStrings.JitterTableHeader);
 
         for (double j = 0.0; j <= maxJitter + 1e-6; j += step)
         {

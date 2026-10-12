@@ -1,8 +1,8 @@
 namespace Kairos103.Benchmarks.Metrics;
 
 /// <summary>
-/// Registrador de eficiencia computacional y asignación de memoria.
-/// Compara operaciones discretas por spike y MACs de front-end frente a multiplicaciones continuas acumuladas (MACs) de los baselines.
+/// Computational efficiency and memory allocation tracker.
+/// Compares discrete spike events and front-end MACs against continuous baseline multiply-accumulate operations (MACs).
 /// </summary>
 public sealed class EfficiencyTracker
 {

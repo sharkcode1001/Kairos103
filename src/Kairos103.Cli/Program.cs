@@ -1,10 +1,27 @@
 using Kairos103.Cli.Commands;
+using Kairos103.Cli.Localization;
+
+// Extract language argument early if present (--lang en | --lang es)
+for (int i = 0; i < args.Length; i++)
+{
+    if (args[i] == "--lang" && i + 1 < args.Length)
+    {
+        CliStrings.CurrentLanguage = args[i + 1].ToLowerInvariant();
+        break;
+    }
+}
 
 Console.WriteLine("====================================================================");
 Console.WriteLine("   Kairos103: Clockless Rank-Order Neural Architecture (.NET 10)    ");
 Console.WriteLine("====================================================================\n");
 
 string command = args.Length > 0 ? args[0].ToLowerInvariant() : "benchmark";
+
+// If the first argument is --lang, default to benchmark
+if (command == "--lang")
+{
+    command = "benchmark";
+}
 
 switch (command)
 {
@@ -41,6 +58,10 @@ switch (command)
             {
                 fast = true;
             }
+            else if (args[i] == "--lang" && i + 1 < args.Length)
+            {
+                i++; // Already handled
+            }
         }
 
         RunBenchmarkCommand.Execute(datasetsDir: dir, targetDataset: dataset, customFactors: factors, runs: runs, fastMode: fast);
@@ -56,7 +77,7 @@ switch (command)
         {
             if (args[i] == "--max-jitter-ms" && i + 1 < args.Length)
             {
-                // Si viene en ms (ej 50), mapear a escala fraccional
+                // If provided in ms (e.g. 50), scale down to fractional
                 double val = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
                 maxJitter = val > 1.0 ? val / 1000.0 : val;
             }
@@ -64,6 +85,10 @@ switch (command)
             {
                 double val = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
                 step = val > 1.0 ? val / 1000.0 : val;
+            }
+            else if (args[i] == "--lang" && i + 1 < args.Length)
+            {
+                i++; // Already handled
             }
         }
 
@@ -92,6 +117,10 @@ switch (command)
             {
                 fast = false;
             }
+            else if (args[i] == "--lang" && i + 1 < args.Length)
+            {
+                i++; // Already handled
+            }
         }
         ExportReportCommand.Execute(outputPath: output, targetDataset: dataset, fast: fast);
         break;
@@ -99,11 +128,8 @@ switch (command)
 
     default:
     {
-        Console.WriteLine($"Comando desconocido: {command}");
-        Console.WriteLine("Uso disponible:");
-        Console.WriteLine("  dotnet run --project src/Kairos103.Cli -- benchmark [--dataset synthetic|ecg] [--warp-factors 0.5,0.8,1.0,1.2,2.0] [--runs 1] [--fast]");
-        Console.WriteLine("  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10]");
-        Console.WriteLine("  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]");
+        Console.WriteLine(CliStrings.UnknownCommand(command));
+        Console.WriteLine(CliStrings.AvailableUsage);
         break;
     }
 }

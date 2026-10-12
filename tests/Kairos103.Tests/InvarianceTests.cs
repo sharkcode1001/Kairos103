@@ -14,10 +14,10 @@ public class InvarianceTests
     [InlineData(5.0, 42.5)]
     public void AffineTransformation_PreservesRelativeSpikeOrder(double alpha, double beta)
     {
-        // Tiempos de arribo del primer spike: t1 < t2 < t3 < t4
+        // First-spike arrival timestamps: t1 < t2 < t3 < t4
         double[] nominalArrivalTimes = [12.4, 18.1, 25.6, 33.2];
 
-        // Transformación afín monótona creciente: t' = alpha * t + beta
+        // Monotonic increasing affine transformation: t' = alpha * t + beta
         double[] warpedArrivalTimes = nominalArrivalTimes
             .Select(t => (alpha * t) + beta)
             .ToArray();
@@ -25,10 +25,10 @@ public class InvarianceTests
         int[] nominalOrder = RankOrderEncoder.GetPermutation(nominalArrivalTimes);
         int[] warpedOrder = RankOrderEncoder.GetPermutation(warpedArrivalTimes);
 
-        // Teorema 4.1: sigma(T') == sigma(T)
+        // Theorem 4.1: sigma(T') == sigma(T)
         Assert.Equal(nominalOrder, warpedOrder);
 
-        // Mismo código de Lehmer
+        // Identical Lehmer index
         int nominalLehmer = CombinatorialTable.PermutationToLehmerIndex(nominalOrder);
         int warpedLehmer = CombinatorialTable.PermutationToLehmerIndex(warpedOrder);
 
@@ -57,8 +57,8 @@ public class InvarianceTests
     [InlineData(2.0, 0.55)]
     public void KairosNetwork_EndToEnd_PreservesHighFeatureCosineSimilarity_UnderTimeWarp(double warpFactor, double minMeanCosineSim)
     {
-        // Prueba de extremo a extremo: pasa señales continuas con dilatación temporal real
-        // a través de KairosNetwork (front-end de fase relativa -> subregiones modulares LIF -> Lehmer codes).
+        // End-to-end test: continuous signals with real temporal dilation
+        // through KairosNetwork (relative-phase front-end -> modular LIF subregions -> Lehmer codes).
         var network = new Kairos103.Core.Models.KairosNetwork(subregionCount: 16);
         double totalSim = 0.0;
 
@@ -84,14 +84,14 @@ public class InvarianceTests
 
         double meanSim = totalSim / Kairos103.Benchmarks.Generators.SyntheticSignals.ClassCount;
 
-        // La similitud promedio entre características nominales y dilatadas se mantiene robusta
+        // Average cosine similarity between nominal and dilated features remains robust
         Assert.True(meanSim >= minMeanCosineSim, $"Mean cosine similarity at warp {warpFactor}x was {meanSim:F3} (expected >= {minMeanCosineSim:F3})");
     }
 
     [Fact]
     public void KairosNetwork_EndToEnd_ClassifierMaintainsHighAccuracyOnWarpedSignals_WithoutRetraining()
     {
-        // Entrena un clasificador exclusivamente a velocidad nominal 1.0x
+        // Train classifier exclusively at nominal speed (1.0x)
         var network = new Kairos103.Core.Models.KairosNetwork(subregionCount: 16);
         var trainer = new Kairos103.Core.Models.PairwiseTrainer(Kairos103.Benchmarks.Generators.SyntheticSignals.ClassCount, network.TotalFeatures);
 
@@ -108,7 +108,7 @@ public class InvarianceTests
 
         trainer.Train(trainData, epochs: 15);
 
-        // Evalúa en señales con factores 0.5x, 0.8x, 1.2x, 2.0x sin reentrenar
+        // Evaluate across 0.5x, 0.8x, 1.2x, 2.0x scale factors without retraining
         double[] factors = [0.5, 0.8, 1.0, 1.2, 2.0];
         int correct = 0;
         int total = 0;
@@ -127,8 +127,7 @@ public class InvarianceTests
         }
 
         double accuracy = (double)correct / total;
-        // Invarianza end-to-end: la precisión en señales comprimidas y dilatadas debe ser >= 95%
+        // End-to-end invariance: accuracy across compressed and dilated signals must remain >= 95%
         Assert.True(accuracy >= 0.95, $"End-to-end classification accuracy on warped signals was {accuracy:P1}");
     }
 }
-

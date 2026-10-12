@@ -1,48 +1,50 @@
-# Protocolo Experimental: Invarianza a Time-Warping (Kairos103 vs. Baselines)
+# Experimental Protocol: Time-Warp Invariance (Kairos103 vs. Baselines)
 
-Este documento formaliza las reglas y condiciones científicas de benchmarking aprobadas antes de la ejecución de pruebas.
+> **Language / Idioma:** **English** | [Español (Spanish)](ExperimentalProtocol_ES.md)
+
+This document formalizes the scientific benchmarking rules and conditions established prior to experimental execution.
 
 ---
 
-## 1. Variables Experimentales
+## 1. Experimental Variables
 
-* **Factores de Escalamiento Temporal en Inferencia ($Test$):**
+* **Inference Temporal Scaling Factors ($Test$):**
   $$\alpha \in \{0.5, 0.8, 1.0, 1.2, 2.0\}$$
-* **Control de Ruido:**
-  * Todos los conjuntos de test incluyen idéntico nivel de *jitter* temporal (perturbación gaussiana preservando monotonicidad temporal) y ruido de amplitud gaussiano ($\sigma_a = 0.05$).
-  * La condición $\alpha = 1.0\times$ en test actúa como grupo de control para aislar el efecto del jitter frente a la dilatación de tiempo.
-* **Condición de Entrenamiento ($Train$):**
-  * Exclusivamente a velocidad nominal ($1.0\times$), sin jitter y con ruido residual leve ($\sigma_a = 0.03$).
-  * **Cero aumento de datos con warp:** La invariancia debe emerger de la propia codificación asíncrona de rango temporal (*rank-order*), no de memorización de perturbaciones.
+* **Noise Control:**
+  * All test sets include an identical level of temporal *jitter* (Gaussian perturbation preserving temporal monotonicity) and Gaussian amplitude noise ($\sigma_a = 0.05$).
+  * The test condition $\alpha = 1.0\times$ acts as a control group to isolate the effect of jitter from time dilation.
+* **Training Condition ($Train$):**
+  * Exclusively at nominal speed ($1.0\times$), without jitter and with slight residual amplitude noise ($\sigma_a = 0.03$).
+  * **Zero data augmentation with time-warp:** Invariance must strictly emerge from the asynchronous rank-order encoding itself, rather than perturbation memorization.
 
 ---
 
-## 2. Métricas de Evaluación
+## 2. Evaluation Metrics
 
-Para cada modelo (Kairos103, Transformer, LSTM), para cada factor de velocidad y para cada uno de los dos conjuntos de datos:
+For each model (Kairos103, Transformer, LSTM), across each speed factor and for each dataset:
 
-1. **Precisión de Clasificación ($Accuracy$ vs. $\alpha$):**
-   * Curva de degradación frente a dilatación y compresión.
-2. **Costo Computacional por Decisión:**
-   * **Baselines continuos (Transformer / LSTM):** Número de multiplicaciones de punto flotante acumuladas (MACs/FLOPs) por inferencia y memoria residente en heap.
-   * **Kairos103:** Desglose estricto en dos componentes:
-     * *Transducción Sensorial Front-End:* MACs continuos de muestreo local sobre las ventanas temporales.
-     * *Red y Clasificador:* Número de eventos discretos (spikes de primer disparo) + operaciones de acumulación entera en lectura (sin multiplicaciones flotantes).
-     * *Cómputo Total:* Suma de ambas etapas comparada contra el presupuesto global de atención densa del baseline.
-
----
-
-## 3. Criterios de Éxito Formal
-
-Para considerar verificada la hipótesis experimental, deben cumplirse **todas** las siguientes condiciones:
-
-1. **Invarianza de Kairos103:** La precisión obtenida se mantiene dentro de un margen de $\pm 3\%$ respecto al valor nominal en $1.0\times$ para los cinco factores temporales, en ambos datasets.
-2. **Colapso del Baseline:** Los modelos continuos (Transformer o LSTM) sufren una degradación $\ge 10\%$ en precisión en los extremos $0.5\times$ o $2.0\times$ con respecto a su rendimiento a $1.0\times$.
-3. **Eficiencia Energética/Operacional:** Kairos103 ejecuta la inferencia con $\le \frac{1}{10}$ del cómputo por decisión requerido por el baseline.
+1. **Classification Accuracy ($Accuracy$ vs. $\alpha$):**
+   * Degradation curve under dilation and compression.
+2. **Computational Cost per Decision:**
+   * **Continuous Baselines (Transformer / LSTM):** Number of accumulated floating-point multiply-accumulate operations (MACs/FLOPs) per inference and resident heap memory.
+   * **Kairos103:** Strict two-component breakdown:
+     * *Sensory Front-End Transduction:* Continuous sampling MACs over local temporal windows.
+     * *Network & Classifier:* Number of discrete events (first-spike pulses) + integer accumulation operations during readout (zero floating-point multiplications).
+     * *Total Compute:* Sum of both stages benchmarked against the dense self-attention budget of the baseline.
 
 ---
 
-## 4. Reglas de Parada e Integridad Científica
+## 3. Formal Success Criteria
 
-* **Rechazo de Hipótesis:** Si Kairos103 no presenta una curva sustancialmente plana de precisión a través de los factores temporales, se reportará el resultado de forma transparente sin maquillar ni ajustar selectivamente hiperparámetros.
-* **Límite de Calidad Nominal:** Si Kairos103 no alcanza un mínimo de $80\%$ de precisión en la condición de control $1.0\times$, se detendrán los barridos de warp hasta refinar el esquema de codificación temporal o la inhibición lateral de subregiones.
+To verify the experimental hypothesis, **all** of the following conditions must be satisfied:
+
+1. **Kairos103 Invariance:** Achieved accuracy remains within a $\pm 3\%$ margin relative to the nominal $1.0\times$ baseline across all five temporal factors, on both datasets.
+2. **Baseline Collapse:** Continuous models (Transformer or LSTM) suffer an accuracy drop $\ge 10\%$ at the extreme factors $0.5\times$ or $2.0\times$ compared to their performance at $1.0\times$.
+3. **Operational / Energy Efficiency:** Kairos103 completes inference with $\le \frac{1}{10}$ of the compute per decision required by the baseline.
+
+---
+
+## 4. Stopping Rules and Scientific Integrity
+
+* **Hypothesis Rejection:** If Kairos103 fails to maintain a substantially flat accuracy curve across temporal factors, the outcome will be reported transparently without cherry-picking or post-hoc hyperparameter tuning.
+* **Nominal Quality Lower Bound:** If Kairos103 fails to achieve a minimum of $80\%$ accuracy under the nominal $1.0\times$ control condition, warp sweeps will be halted until the temporal encoding or modular subregion lateral inhibition scheme is refined.

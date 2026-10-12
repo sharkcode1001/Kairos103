@@ -1,8 +1,8 @@
 namespace Kairos103.Benchmarks.Generators;
 
 /// <summary>
-/// Generador programático en C# de señales sintéticas 1D con dilatación temporal.
-/// Implementa los patrones de ondas del benchmark WarpStress v1.
+/// Programmatic C# generator of 1D synthetic signals with time-warp scaling.
+/// Implements the waveform patterns from the WarpStress v1 benchmark.
 /// </summary>
 public sealed class SyntheticSignals
 {
@@ -40,7 +40,7 @@ public sealed class SyntheticSignals
     }
 
     /// <summary>
-    /// Genera una muestra de señal re-muestreada a un factor de velocidad dado (alfa).
+    /// Generates a signal sample resampled at a specific speed scale factor (alpha).
     /// </summary>
     public static double[] GenerateSignal(int label, double warpFactor)
     {

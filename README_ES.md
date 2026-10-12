@@ -31,7 +31,7 @@ Para validar científicamente una arquitectura frente a baselines consolidados c
    * Medir microsegundos por inferencia o asignación de memoria en el heap (`GC.GetAllocatedBytesForCurrentThread()`) en WPF o WinForms introduce ruido estadístico proveniente del dispatcher, bucles de renderizado y bindings XAML.
    * La consola asegura que el 100% de los ciclos de CPU y bytes medidos corresponden exclusivamente a la red neuronal.
 2. **Automatización de Barridos Masivos (Sweeps & CI):**
-   * Facilita la ejecución automatizada de experimentos reproducibles mediante argumentos de línea de comandos (ej. 10 semillas aleatorias $\times$ 7 factores de escala temporal $\times$ 5 niveles de ruido).
+   * Facilita la ejecución automatizada de experimentos reproducibles mediante argumentos de línea de comandos (evaluando a lo largo de los 5 factores canónicos de escala temporal: $0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$, junto con barridos de jitter).
 3. **Generación Automatizada de Reportes y Gráficos:**
    * El CLI genera automáticamente matrices de confusión, curvas comparativas (*Accuracy vs. Time-Warp Factor*) y tablas Markdown listas para publicación técnica o repositorio.
 4. **Desacoplamiento Futuro:**
@@ -210,7 +210,7 @@ Todo el experimento está concebido para ejecutarse en cualquier ordenador port�
 1. **Fase 1: Entrenamiento Nominal ($1.0\times$)**
    * Se entrena Kairos103 y los baselines (Mini-Transformer y LSTM) sobre el dataset a velocidad de muestreo nominal.
 2. **Fase 2: Barrido de Dilatación Temporal (*Time-Warp Stress Test*)**
-   * Se evalúa la inferencia aplicando factores de escala temporal $\alpha \in \{0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 2.0\}$.
+   * Se evalúa la inferencia aplicando factores de escala temporal $\alpha \in \{0.5, 0.8, 1.0, 1.2, 2.0\}$.
    * Se evalúa con adición progresiva de ruido gaussiano temporal (*jitter* $\sigma_j \in [0, 50\,\text{ms}]$).
 3. **Fase 3: Contabilización de Huella Computacional y Operaciones**
    * Recuento estricto de eventos: número total de operaciones de suma por spike frente a operaciones flotantes (FLOPs/MACs) de los modelos continuos.

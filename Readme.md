@@ -31,7 +31,7 @@ To scientifically validate the architecture against established baselines such a
    * Measuring inference latency in microsecond precision or heap allocations (`GC.GetAllocatedBytesForCurrentThread()`) in WPF or WinForms introduces statistical noise from the UI dispatcher, render loops, and XAML data bindings.
    * The headless console guarantees that 100% of measured CPU cycles and memory bytes belong exclusively to the neural network.
 2. **Automated Massive Sweeps (Sweeps & CI):**
-   * Enables automated, reproducible batch experiment execution via command-line arguments (e.g., 10 random seeds $\times$ 7 time-warp scale factors $\times$ 5 noise levels).
+   * Enables automated, reproducible batch experiment execution via command-line arguments (evaluating across the 5 canonical time-warp scale factors: $0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$, plus jitter sweeps).
 3. **Automated Reporting and Plot Generation:**
    * The CLI automatically outputs confusion matrices, comparative curves (*Accuracy vs. Time-Warp Factor*), and Markdown tables ready for technical publication or repository display.
 4. **Future Decoupling:**
@@ -210,7 +210,7 @@ The entire benchmark suite is designed to run on any standard developer machine 
 1. **Phase 1: Nominal Training ($1.0\times$)**
    * Kairos103 and baselines (Mini-Transformer and LSTM) are trained on the dataset at nominal sampling rate.
 2. **Phase 2: Time-Warp Stress Test Sweep**
-   * Inference is evaluated across scale factors $\alpha \in \{0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 2.0\}$.
+   * Inference is evaluated across scale factors $\alpha \in \{0.5, 0.8, 1.0, 1.2, 2.0\}$.
    * Evaluated under progressive temporal Gaussian noise (*jitter* $\sigma_j \in [0, 50\,\text{ms}]$).
 3. **Phase 3: Computational Footprint and Operation Accounting**
    * Strict event accounting: total additions per spike versus floating-point operations (FLOPs/MACs) of continuous models.

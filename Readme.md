@@ -52,7 +52,7 @@ To scientifically validate the architecture against established baselines such a
 
 ## 4. Scientific Hypothesis and What We Demonstrate
 
-### 4.1. Time-Warp Invariance Theorem
+### 4.1. Global Affine Time-Scale Invariance Theorem
 Let an ensemble of $n$ sensory neural channels produce their first action potentials (*first-spike arrival times*) at instants:
 $$T = \{t_1, t_2, \dots, t_n\}$$
 
@@ -66,12 +66,16 @@ $$\sigma(T') \equiv \sigma(T)$$
 
 **Consequence:** In the arrival space of continuous first spikes, the internal rank-dictionary representation of Kairos103 is **analytically identical by construction** under any monotonic increasing affine dilation ($\alpha > 0$). In discrete digital signals with finite sampling, the phase-normalized front-end preserves between $90\%$ and $99\%$ permutation code concordance, exhibiting negligible degradation compared to clock-dependent models.
 
+> [!NOTE]
+> **Formal Theoretical Scope:** The theorem proves exact invariance for *global monotonic affine transformations* ($t' = \alpha t + \beta$). Non-uniform, local non-linear phase deformations (e.g., intra-burst warping) are not covered by the analytical theorem itself, but are empirically mitigated through modular $N=4$ subregions and lateral threshold inhibition.
+
 ### 4.2. Concrete Empirical Objectives to Demonstrate
-1. **Time-Warp Invariance ($0.5\times$ to $2.0\times$) in Bounded Epochs:**
-   * On bounded temporal sequence classification tasks (sensory bursts, vibration, or ECG complexes delimited by their activation interval), Kairos103 maintains accuracy degradation under $2\%$ without retraining or data augmentation, whereas baselines with rigid positional encodings like Transformers and LSTMs suffer drops exceeding $20\%-30\%$.
-2. **Discrete Computational Efficiency and MAC Breakdown:**
-   * At the network and readout classifier stage, inference is resolved entirely through accumulated sums over sparse events ($\sim 10^4$ discrete integer additions without dense multiplications).
-   * Accounting for the complete pipeline (including the continuous front-end sensory analog/digital filters), Kairos103 reduces total compute by over an order of magnitude ($\sim 14.6\times$ fewer global MAC/FLOP operations compared to the quadratic dense self-attention $O(T^2 \cdot D)$ of an equivalent Transformer).
+1. **Global Affine Scaling Invariance ($0.5\times$ to $2.0\times$):**
+   * On bounded temporal sequence classification tasks (sensory bursts, vibration, or ECG complexes delimited by their activation interval), Kairos103 maintains nominal accuracy within $\pm 2\%$ in moderate scaling ($0.8\times - 1.2\times$) and $\ge 90\%$ retention (worst-case drop $\le 10\%$) under extreme scaling ($0.5\times, 2.0\times$) without retraining or data augmentation, whereas baselines with rigid positional encodings like Transformers and LSTMs suffer drops exceeding $20\%-30\%$.
+2. **Discrete Computational Footprint and MAC Breakdown:**
+   * At the network and readout classifier stage, inference is resolved entirely through accumulated sums over sparse events ($\sim 10^4$ discrete integer additions without dense matrix multiplications).
+   * Accounting for the complete end-to-end pipeline (including continuous front-end sensory filters), Kairos103 achieves an estimated $14.6\times$ (Synthetic) to $27.8\times$ (ECG) reduction in total arithmetic MAC/FLOP operations compared to the quadratic dense self-attention of an equivalent Transformer.
+   * *Methodological Note on Energy:* Reported efficiency represents algorithmic arithmetic operation counts (MACs/FLOPs); direct physical energy (Joules/Watts) measurements on edge silicon remain a goal for dedicated hardware deployment phases.
 3. **Jitter Tolerance via Modular Subregions:**
    * Partitioning into local modules of $N=4$ neurons with adaptive lateral inhibition filters high-frequency phase noise, maintaining code stability above $97\%$.
 
@@ -208,9 +212,10 @@ The entire benchmark suite is designed to run on any standard developer machine 
 2. **Phase 2: Time-Warp Stress Test Sweep**
    * Inference is evaluated across scale factors $\alpha \in \{0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 2.0\}$.
    * Evaluated under progressive temporal Gaussian noise (*jitter* $\sigma_j \in [0, 50\,\text{ms}]$).
-3. **Phase 3: Energy and Computational Footprint Measurement**
+3. **Phase 3: Computational Footprint and Operation Accounting**
    * Strict event accounting: total additions per spike versus floating-point operations (FLOPs/MACs) of continuous models.
    * Heap memory allocation during steady-state inference (`GC.GetAllocatedBytesForCurrentThread()`).
+   * (Direct physical Joules/Watts silicon telemetry is deferred to dedicated edge hardware deployment phases).
 
 ---
 

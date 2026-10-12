@@ -52,11 +52,11 @@ Para validar científicamente una arquitectura frente a baselines consolidados c
 
 ## 4. Hipótesis Científica y Lo Que Demostramos
 
-### 4.1. Teorema de Invarianza por Escalamiento Temporal
+### 4.1. Teorema de Invarianza por Escalamiento Temporal Afín Global
 Sea un conjunto de $n$ canales neuronales que emiten sus primeros pulsos (*first-spike arrival times*) en los instantes:
 $$T = \{t_1, t_2, \dots, t_n\}$$
 
-Si la señal de entrada sufre una transformación temporal afín monótona creciente (aceleración, desaceleración o desplazamiento temporal):
+Si la señal de entrada sufre una transformación temporal afín monótona creciente (aceleración, desaceleración o desplazamiento temporal global):
 $$t'_i = \alpha \cdot t_i + \beta, \quad \text{con } \alpha > 0, \; \beta \in \mathbb{R}$$
 
 Entonces, el orden relativo de llegada inducido $\sigma \in S_n$ satisface:
@@ -66,12 +66,16 @@ $$\sigma(T') \equiv \sigma(T)$$
 
 **Consecuencia:** En el espacio de arribo de primeros pulsos continuos, la representación interna del diccionario de rangos de Kairos103 es **analíticamente idéntica por construcción** bajo cualquier dilatación afín monótona creciente ($\alpha > 0$). En señales digitales discretas con muestreo finito, el front-end de fase normalizada preserva entre un $90\%$ y $99\%$ de concordancia de códigos de permutación, exhibiendo una degradación despreciable frente a modelos dependientes de reloj.
 
+> [!NOTE]
+> **Alcance Teórico Formal:** El teorema demuestra invarianza exacta para *transformaciones afines monótonas globales* ($t' = \alpha t + \beta$). Las deformaciones no uniformes o no lineales locales (ej. deformación de fase por tramos dentro del mismo ciclo) no están cubiertas analíticamente por el teorema, pero se mitigan empíricamente mediante las subregiones modulares $N=4$ y la inhibición lateral.
+
 ### 4.2. Objetivos Empíricos Concretos a Demostrar
-1. **Invarianza al Time-Warping ($0.5\times$ a $2.0\times$) en Épocas Acotadas:**
-   * En tareas de clasificación de secuencias temporales acotadas (ráfagas sensoriales, vibración o complejos ECG delimitados por su intervalo de activación), Kairos103 mantiene una degradación inferior al $2\%$ en precisión sin reentrenamiento ni aumento de datos, mientras que baselines con codificación posicional rígida como Transformers y LSTMs sufren caídas superiores al $20\%-30\%$.
-2. **Eficiencia Computacional Discreta y Desglose de MACs:**
-   * En la etapa de red y readout clasificador, la inferencia se resuelve exclusivamente mediante sumas acumuladas sobre eventos dispersos ($\sim 10^4$ adiciones discretas sin multiplicaciones densas).
-   * Al contabilizar el pipeline completo (incluyendo los filtros analógicos/digitales continuos del front-end sensorial), Kairos103 reduce el cómputo total en un orden de magnitud ($\sim 14.6\times$ menos operaciones MAC/FLOPs globales frente a la auto-atención densa cuadrática $O(T^2 \cdot D)$ de un Transformer equivalente).
+1. **Invarianza al Escalamiento Afín Global ($0.5\times$ a $2.0\times$):**
+   * En tareas de clasificación de secuencias temporales acotadas (ráfagas sensoriales, vibración o complejos ECG delimitados por su intervalo de activación), Kairos103 mantiene la precisión nominal dentro de $\pm 2\%$ en escalamiento moderado ($0.8\times - 1.2\times$) y retiene $\ge 90\%$ de precisión (caída máxima $\le 10\%$) en dilataciones extremas ($0.5\times, 2.0\times$) sin reentrenamiento ni aumento de datos, mientras que baselines con codificación posicional rígida sufren caídas superiores al $20\%-30\%$.
+2. **Huella Computacional Discreta y Desglose de MACs:**
+   * En la etapa de red y readout clasificador, la inferencia se resuelve exclusivamente mediante sumas acumuladas sobre eventos dispersos ($\sim 10^4$ adiciones discretas sin multiplicaciones matriciales densas).
+   * Al contabilizar el pipeline completo de extremo a extremo (incluyendo los filtros continuos del front-end sensorial), Kairos103 logra una reducción estimada de $14.6\times$ (Sintético) a $27.8\times$ (ECG) en operaciones aritméticas MAC/FLOPs globales frente a la auto-atención densa cuadrática de un Transformer equivalente.
+   * *Nota Metodológica sobre Energía:* La eficiencia reportada corresponde a conteo de operaciones algorítmicas (MACs/FLOPs); la medición física directa de energía (Julios/Vatios) en silicio edge queda como objetivo de las fases de despliegue en hardware dedicado.
 3. **Tolerancia al Jitter mediante Subregiones Modulares:**
    * La segmentación en módulos locales de $N=4$ neuronas con inhibición lateral adaptativa filtra el ruido de fase de alta frecuencia, conservando una estabilidad de código superior al $97\%$.
 
@@ -208,9 +212,10 @@ Todo el experimento está concebido para ejecutarse en cualquier ordenador port�
 2. **Fase 2: Barrido de Dilatación Temporal (*Time-Warp Stress Test*)**
    * Se evalúa la inferencia aplicando factores de escala temporal $\alpha \in \{0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 2.0\}$.
    * Se evalúa con adición progresiva de ruido gaussiano temporal (*jitter* $\sigma_j \in [0, 50\,\text{ms}]$).
-3. **Fase 3: Medición de Huella Energética y Computacional**
+3. **Fase 3: Contabilización de Huella Computacional y Operaciones**
    * Recuento estricto de eventos: número total de operaciones de suma por spike frente a operaciones flotantes (FLOPs/MACs) de los modelos continuos.
    * Asignación de memoria en el heap durante inferencia en régimen estacionario (`GC.GetAllocatedBytesForCurrentThread()`).
+   * (La telemetría física directa en Julios/Vatios sobre silicio queda diferida a las fases de despliegue en hardware edge dedicado).
 
 ---
 

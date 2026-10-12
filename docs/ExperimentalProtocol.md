@@ -48,3 +48,10 @@ To verify the experimental hypothesis, **all** of the following conditions must 
 
 * **Hypothesis Rejection:** If Kairos103 fails to maintain a substantially flat accuracy curve across temporal factors, the outcome will be reported transparently without cherry-picking or post-hoc hyperparameter tuning.
 * **Nominal Quality Lower Bound:** If Kairos103 fails to achieve a minimum of $80\%$ accuracy under the nominal $1.0\times$ control condition, warp sweeps will be halted until the temporal encoding or modular subregion lateral inhibition scheme is refined.
+
+---
+
+## 5. Recurrent Baseline Dynamics Under Temporal Compression
+
+In recurrent models (LSTM), temporal acceleration ($2.0\times$) halves the sequence length ($T \to T/2$). On physiological signals (ECG), this reduction shortens the temporal horizon over which hidden state and forget-gate error accumulate, occasionally producing a paradoxical accuracy boost (e.g., $73.50\% \to 85.00\%$). This is formally classified as a sequence-length truncation artifact rather than affine temporal robustness, as evidenced by catastrophic collapse under temporal dilation ($0.5\times$, where horizon lengthens) and phase distortion on synthetic signals.
+

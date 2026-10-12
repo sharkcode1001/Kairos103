@@ -48,3 +48,10 @@ Para considerar verificada la hipótesis experimental, deben cumplirse **todas**
 
 * **Rechazo de Hipótesis:** Si Kairos103 no presenta una curva sustancialmente plana de precisión a través de los factores temporales, se reportará el resultado de forma transparente sin maquillar ni ajustar selectivamente hiperparámetros.
 * **Límite de Calidad Nominal:** Si Kairos103 no alcanza un mínimo de $80\%$ de precisión en la condición de control $1.0\times$, se detendrán los barridos de warp hasta refinar el esquema de codificación temporal o la inhibición lateral de subregiones.
+
+---
+
+## 5. Dinámica de Baselines Recurrentes Bajo Compresión Temporal
+
+En modelos recurrentes (LSTM), la aceleración temporal ($2.0\times$) reduce a la mitad la longitud de la secuencia ($T \to T/2$). En señales fisiológicas (ECG), esta reducción acorta el horizonte temporal sobre el cual se acumulan el error del estado oculto y la deriva de las compuertas de olvido (*forget gates*), produciendo ocasionalmente un aumento paradójico en la precisión ($73.50\% \to 85.00\%$). Esto se clasifica formalmente como un artefacto de truncamiento de horizonte temporal y no como robustez afín, como lo evidencia el colapso catastrófico bajo dilatación temporal ($0.5\times$, donde el horizonte se alarga) y la distorsión de fase en señales sintéticas.
+

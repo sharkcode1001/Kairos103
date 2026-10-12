@@ -66,6 +66,52 @@ public static class OnlineBenchmarkCommand
             }
         }
 
+        // Baseline empirical references from rigorous full-sweep benchmark (BenchmarkSummary.md)
+        var synthBaselineTransformer = new Dictionary<string, double>
+        {
+            ["0.5x"] = 0.3100,
+            ["0.8x"] = 0.4950,
+            ["1.0x"] = 0.8050,
+            ["1.2x"] = 0.3900,
+            ["2.0x"] = 0.2450
+        };
+
+        var synthBaselineLstm = new Dictionary<string, double>
+        {
+            ["0.5x"] = 0.3000,
+            ["0.8x"] = 0.3850,
+            ["1.0x"] = 0.9850,
+            ["1.2x"] = 0.0000,
+            ["2.0x"] = 0.0050
+        };
+
+        var ecgBaselineTransformer = new Dictionary<string, double>
+        {
+            ["0.5x"] = 0.9000,
+            ["0.8x"] = 0.9450,
+            ["1.0x"] = 0.9700,
+            ["1.2x"] = 0.8850,
+            ["2.0x"] = 0.8850
+        };
+
+        var ecgBaselineLstm = new Dictionary<string, double>
+        {
+            ["0.5x"] = 0.5650,
+            ["0.8x"] = 0.7400,
+            ["1.0x"] = 0.7350,
+            ["1.2x"] = 0.8250,
+            ["2.0x"] = 0.8500
+        };
+
+        // Compute dynamic degradation against nominal (1.0x)
+        double synthNominal = synthResults.TryGetValue("1.0x", out var sn) ? sn : 1.0;
+        double synthMin = synthResults.Values.Count > 0 ? synthResults.Values.Min() : synthNominal;
+        double synthWorstDrop = Math.Max(0.0, synthNominal - synthMin);
+
+        double ecgNominal = ecgResults.TryGetValue("1.0x", out var en) ? en : 1.0;
+        double ecgMin = ecgResults.Values.Count > 0 ? ecgResults.Values.Min() : ecgNominal;
+        double ecgWorstDrop = Math.Max(0.0, ecgNominal - ecgMin);
+
         // Generate JSON Submission File
         var submission = new
         {
@@ -77,10 +123,14 @@ public static class OnlineBenchmarkCommand
             Metrics = new
             {
                 OperationsType = "Accumulation-Only Readout (0 Dense Multiplications)",
-                EnergyEfficiencyVsDenseTransformer = "27.8x reduction in total operations",
+                EnergyEfficiencyVsDenseTransformer = "14.6x (Synthetic, T=256) to 27.8x (ECG, T=512) reduction in total compute vs dense self-attention",
                 WarpStressAccuracy = synthResults,
                 EcgArrhythmiaAccuracy = ecgResults,
-                WorstCaseDegradationUnderWarp = "0.00% on MIT-BIH (100% strict invariance)"
+                WorstCaseDegradationUnderWarp = new
+                {
+                    SyntheticWarpStress = $"{synthWorstDrop * 100:F2}% (Nominal {synthNominal * 100:F2}% -> Worst {synthMin * 100:F2}%)",
+                    EcgArrhythmia = $"{ecgWorstDrop * 100:F2}% (Nominal {ecgNominal * 100:F2}% -> Worst {ecgMin * 100:F2}%)"
+                }
             },
             GeneratedAt = DateTime.UtcNow.ToString("o")
         };
@@ -100,24 +150,38 @@ public static class OnlineBenchmarkCommand
         sb.AppendLine("## Empirical Results Summary");
         sb.AppendLine();
         sb.AppendLine("### 1. Synthetic WarpStress 1D");
-        sb.AppendLine("| Scale Factor | Speed | Kairos103 Accuracy | Baseline Transformer | Baseline LSTM |");
-        sb.AppendLine("| :---: | :---: | :---: | :---: | :---: |");
-        foreach (var kvp in synthResults)
+        sb.AppendLine("| Scale Factor | Kairos103 Accuracy | Baseline Transformer | Baseline LSTM |");
+        sb.AppendLine("| :---: | :---: | :---: | :---: |");
+        foreach (var factor in factors)
         {
-            sb.AppendLine($"| {kvp.Key} | - | **{kvp.Value * 100:F2}%** | ~30-49% | ~0-38% |");
+            string key = $"{factor:F1}x";
+            string kairosVal = synthResults.TryGetValue(key, out var kVal) ? $"{kVal * 100:F2}%" : "N/A";
+            string transVal = synthBaselineTransformer.TryGetValue(key, out var tVal) ? $"{tVal * 100:F2}%" : "N/A";
+            string lstmVal = synthBaselineLstm.TryGetValue(key, out var lVal) ? $"{lVal * 100:F2}%" : "N/A";
+            sb.AppendLine($"| {key} | **{kairosVal}** | {transVal} | {lstmVal} |");
         }
         sb.AppendLine();
         sb.AppendLine("### 2. MIT-BIH Arrhythmia ECG (Real Biomedical Dataset)");
-        sb.AppendLine("| Scale Factor | Speed | Kairos103 Accuracy | Baseline Transformer | Baseline LSTM |");
-        sb.AppendLine("| :---: | :---: | :---: | :---: | :---: |");
-        foreach (var kvp in ecgResults)
+        sb.AppendLine("| Scale Factor | Kairos103 Accuracy | Baseline Transformer | Baseline LSTM |");
+        sb.AppendLine("| :---: | :---: | :---: | :---: |");
+        foreach (var factor in factors)
         {
-            sb.AppendLine($"| {kvp.Key} | - | **{kvp.Value * 100:F2}%** | ~88.5% | ~56.5% |");
+            string key = $"{factor:F1}x";
+            string kairosVal = ecgResults.TryGetValue(key, out var kVal) ? $"{kVal * 100:F2}%" : "N/A";
+            string transVal = ecgBaselineTransformer.TryGetValue(key, out var tVal) ? $"{tVal * 100:F2}%" : "N/A";
+            string lstmVal = ecgBaselineLstm.TryGetValue(key, out var lVal) ? $"{lVal * 100:F2}%" : "N/A";
+            sb.AppendLine($"| {key} | **{kairosVal}** | {transVal} | {lstmVal} |");
         }
         sb.AppendLine();
+        sb.AppendLine("> *Note on ECG LSTM behavior:* The accuracy increase in LSTM under $2.0\\times$ compression (73.50% at nominal vs. 85.00% at $2.0\\times$) is an artifact of sequence length halving ($T \\to T/2$), which mitigates recurrent forget-gate drift over shorter time horizons.");
+        sb.AppendLine();
         sb.AppendLine("## Verification");
-        sb.AppendLine("Reproduce locally with single command:");
+        sb.AppendLine("Reproduce locally with single commands:");
         sb.AppendLine("```bash");
+        sb.AppendLine("# Regenerate standardized leaderboard submission artifacts:");
+        sb.AppendLine("dotnet run --project src/Kairos103.Cli -- online-bench");
+        sb.AppendLine();
+        sb.AppendLine("# Run full comparative benchmark suite (Kairos vs Transformer vs LSTM):");
         sb.AppendLine("dotnet run --project src/Kairos103.Cli -- benchmark");
         sb.AppendLine("```");
 

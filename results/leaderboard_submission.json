@@ -6,7 +6,7 @@
   "HardwareTarget": "Microcontrollers / Edge AI / ARM Cortex-M / Ultra-Low Power RISC-V",
   "Metrics": {
     "OperationsType": "Accumulation-Only Readout (0 Dense Multiplications)",
-    "EnergyEfficiencyVsDenseTransformer": "27.8x reduction in total operations",
+    "EnergyEfficiencyVsDenseTransformer": "14.6x (Synthetic, T=256) to 27.8x (ECG, T=512) reduction in total compute vs dense self-attention",
     "WarpStressAccuracy": {
       "0.5x": 0.99,
       "0.8x": 0.98875,
@@ -21,7 +21,10 @@
       "1.2x": 1,
       "2.0x": 1
     },
-    "WorstCaseDegradationUnderWarp": "0.00% on MIT-BIH (100% strict invariance)"
+    "WorstCaseDegradationUnderWarp": {
+      "SyntheticWarpStress": "7.13% (Nominal 98.75% -\u003E Worst 91.62%)",
+      "EcgArrhythmia": "0.25% (Nominal 100.00% -\u003E Worst 99.75%)"
+    }
   },
-  "GeneratedAt": "2026-10-12T18:04:57.2620142Z"
+  "GeneratedAt": "2026-10-12T21:20:28.1640276Z"
 }

@@ -8,56 +8,70 @@ namespace Kairos103.Cli.Commands;
 /// </summary>
 public static class ExportReportCommand
 {
-    public static void Execute(string outputPath = "./results", string targetDataset = "synthetic", bool fast = true)
+    public static void Execute(string outputPath = "./results", string targetDataset = "all", bool fast = true)
     {
         Directory.CreateDirectory(outputPath);
         string reportFile = Path.Combine(outputPath, "BenchmarkSummary.md");
-        string svgFile = Path.Combine(outputPath, "WarpRobustness.svg");
 
-        Console.WriteLine($"Generando datos para reporte técnico en: {outputPath}...");
-        var (factors, kairosAcc, transAcc, lstmAcc, effTracker) =
-            RunBenchmarkCommand.Execute(targetDataset: targetDataset, fastMode: fast);
+        var datasetsToRun = targetDataset.Equals("all", StringComparison.OrdinalIgnoreCase)
+            ? new[] { "synthetic", "ecg" }
+            : new[] { targetDataset };
 
         var sb = new StringBuilder();
-        sb.AppendLine("# Informe Técnico de Benchmarking: Kairos103");
+        sb.AppendLine("# Informe Técnico Consolidado de Benchmarking: Kairos103");
         sb.AppendLine();
         sb.AppendLine($"* **Fecha:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         sb.AppendLine("* **Plataforma:** .NET 10.0 (C# asíncrono, Headless CLI)");
         sb.AppendLine("* **Arquitectura:** Red Rank-Order con Subregiones N=4 acopladas");
-        sb.AppendLine($"* **Dataset Evaluado:** {targetDataset.ToUpperInvariant()}");
         sb.AppendLine();
         sb.AppendLine("## 1. Resumen de Invarianza a Time-Warping");
         sb.AppendLine("Los resultados experimentales confirman la estabilidad ante transformaciones temporales afines ($t' = \\alpha t + \\beta$).");
         sb.AppendLine();
-        if (factors.Length > 0)
+
+        foreach (var ds in datasetsToRun)
         {
-            sb.AppendLine(AsciiPlotter.GenerateMarkdownTable(targetDataset, factors, kairosAcc, transAcc, lstmAcc));
+            Console.WriteLine($"\n--- Ejecutando exportación para dataset: {ds.ToUpperInvariant()} ---");
+            var (factors, kairosAcc, transAcc, lstmAcc, effTracker) =
+                RunBenchmarkCommand.Execute(targetDataset: ds, fastMode: fast);
+
+            if (factors.Length > 0)
+            {
+                sb.AppendLine($"### A. Dataset: {ds.ToUpperInvariant()}");
+                sb.AppendLine();
+                sb.AppendLine(AsciiPlotter.GenerateMarkdownTable(ds, factors, kairosAcc, transAcc, lstmAcc));
+                sb.AppendLine();
+                sb.AppendLine("#### Métricas de Eficiencia Computacional");
+                sb.AppendLine($"- **Kairos Front-End MACs (continuos):** {effTracker.TotalFrontEndMacs:N0}");
+                sb.AppendLine($"- **Kairos Spikes Discretos (eventos):** {effTracker.TotalSpikes:N0}");
+                sb.AppendLine($"- **Kairos Acumulaciones (clasificador):** {effTracker.TotalAccumulateOps:N0}");
+                sb.AppendLine($"- **Mini-Transformer MACs:** {effTracker.TotalTransformerMacs:N0}");
+                sb.AppendLine($"- **Simple LSTM MACs:** {effTracker.TotalLstmMacs:N0}");
+                sb.AppendLine($"- **Memoria Heap Asignada:** {effTracker.MemoryAllocatedBytes:N0} bytes");
+                sb.AppendLine();
+
+                string dsSvgFile = Path.Combine(outputPath, $"WarpRobustness_{ds}.svg");
+                string dsSvg = GenerateSvgPlot(factors, kairosAcc, transAcc, lstmAcc, ds);
+                File.WriteAllText(dsSvgFile, dsSvg);
+                Console.WriteLine($"[OK] Gráfico vectorial generado: {dsSvgFile}");
+
+                // Si es synthetic o el único, generar también WarpRobustness.svg genérico
+                if (ds == "synthetic" || datasetsToRun.Length == 1)
+                {
+                    File.WriteAllText(Path.Combine(outputPath, "WarpRobustness.svg"), dsSvg);
+                }
+            }
         }
 
-        sb.AppendLine("## 2. Métricas de Eficiencia Computacional");
-        sb.AppendLine($"- **Kairos Front-End MACs (continuos):** {effTracker.TotalFrontEndMacs:N0}");
-        sb.AppendLine($"- **Kairos Spikes Discretos (eventos):** {effTracker.TotalSpikes:N0}");
-        sb.AppendLine($"- **Kairos Acumulaciones (clasificador):** {effTracker.TotalAccumulateOps:N0}");
-        sb.AppendLine($"- **Mini-Transformer MACs:** {effTracker.TotalTransformerMacs:N0}");
-        sb.AppendLine($"- **Simple LSTM MACs:** {effTracker.TotalLstmMacs:N0}");
-        sb.AppendLine($"- **Memoria Heap Asignada:** {effTracker.MemoryAllocatedBytes:N0} bytes");
-
         File.WriteAllText(reportFile, sb.ToString());
-
-        // Generar SVG representativo
-        string svg = GenerateSvgPlot(factors, kairosAcc, transAcc, lstmAcc);
-        File.WriteAllText(svgFile, svg);
-
-        Console.WriteLine($"\n[OK] Reporte Markdown generado en: {reportFile}");
-        Console.WriteLine($"[OK] Gráfico vectorial generado en: {svgFile}");
+        Console.WriteLine($"\n[OK] Informe consolidado generado en: {reportFile}");
     }
 
-    private static string GenerateSvgPlot(double[] factors, double[] kairosAcc, double[] transAcc, double[] lstmAcc)
+    private static string GenerateSvgPlot(double[] factors, double[] kairosAcc, double[] transAcc, double[] lstmAcc, string datasetTitle = "synthetic")
     {
         var sb = new StringBuilder();
         sb.AppendLine("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"640\" height=\"360\" viewBox=\"0 0 640 360\">");
         sb.AppendLine("  <rect width=\"100%\" height=\"100%\" fill=\"#1e1e24\" rx=\"8\"/>");
-        sb.AppendLine("  <text x=\"320\" y=\"32\" fill=\"#ffffff\" font-family=\"sans-serif\" font-size=\"16\" font-weight=\"bold\" text-anchor=\"middle\">Time-Warp Robustness: Accuracy vs Scale Factor</text>");
+        sb.AppendLine($"  <text x=\"320\" y=\"32\" fill=\"#ffffff\" font-family=\"sans-serif\" font-size=\"16\" font-weight=\"bold\" text-anchor=\"middle\">Time-Warp Robustness ({datasetTitle.ToUpperInvariant()}): Accuracy vs Scale Factor</text>");
         
         // Ejes
         sb.AppendLine("  <line x1=\"80\" y1=\"300\" x2=\"580\" y2=\"300\" stroke=\"#666\" stroke-width=\"1\"/>");

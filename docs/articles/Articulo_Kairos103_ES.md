@@ -103,16 +103,16 @@ Todos los modelos fueron entrenados **exclusivamente a velocidad nominal ($1.0\t
 
 | Factor Warp | Velocidad | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:---------:|:----------------:|:----------------:|:-----------:|
-| **0.5x** | Doble lentitud | **99.00%** | 31.00% | 40.50% |
-| **0.8x** | 20% más lenta | **98.00%** | 59.00% | 36.50% |
-| **1.0x** | Nominal (Control) | **98.50%** | 53.50% | 41.00% |
-| **1.2x** | 20% más rápida | **98.00%** | 34.50% | 40.00% |
-| **2.0x** | Doble rapidez | **90.00%** | 24.50% | 43.50% |
+| **0.5x** | Doble lentitud | **99.00%** | 31.00% | 30.00% |
+| **0.8x** | 20% más lenta | **98.00%** | 39.50% | 38.50% |
+| **1.0x** | Nominal (Control) | **98.50%** | 53.00% | **98.50%** |
+| **1.2x** | 20% más rápida | **98.00%** | 25.00% | 0.00% |
+| **2.0x** | Doble rapidez | **90.00%** | 24.50% | 0.50% |
 
 > [!NOTE]
-> **Resolución Estadística y Reproducibilidad:** Los conjuntos de prueba evaluados constan de $N = 200$ muestras independientes por factor. Por ello, la resolución empírica es discreta en pasos de $\frac{1}{200} = 0.50\%$ (ej. $198/200 = 99.00\%$, $197/200 = 98.50\%$, $180/200 = 90.00\%$). Todas las mediciones son reproducibles mediante `dotnet run --project src/Kairos103.Cli -- benchmark --fast` y se encuentran respaldadas con sus gráficos vectoriales en el directorio `results/`.
+> **Resolución Estadística y Reproducibilidad:** Los conjuntos de prueba evaluados constan de $N = 200$ muestras independientes por factor. Por ello, la resolución empírica es discreta en pasos de $\frac{1}{200} = 0.50\%$ (ej. $198/200 = 99.00\%$, $197/200 = 98.50\%$, $180/200 = 90.00\%$). Todas las mediciones son reproducibles mediante `dotnet run --project src/Kairos103.Cli -- export-plots --output ./results/` y se encuentran respaldadas con sus gráficos vectoriales y reporte Markdown consolidado en el directorio `results/`.
 
-* **Observación:** Mientras que el Mini-Transformer y la LSTM se degradan hasta el nivel de azar (~25%-30%), Kairos103 mantiene una precisión prácticamente plana ($\ge 98\%$) en casi todo el rango operativo. La pequeña inflexión a $2.0\times$ ($90.00\%$) se debe a efectos de interpolación discreta cercanos al límite de Nyquist al reducir la señal a la mitad de muestras.
+* **Observación:** El baseline recurrente (LSTM) logra converger plenamente a velocidad nominal ($98.50\%$), pero su dependencia estricta del marco de tiempo discreto $\Delta t$ provoca su **colapso catastrófico hasta el $0.00\% - 0.50\%$** bajo dilatación temporal acelerada ($1.2\times$ y $2.0\times$). Por su parte, Kairos103 mantiene una precisión prácticamente plana ($\ge 98\%$) en casi todo el rango operativo.
 
 ### B. Dataset Biomédico Real: Detección de Arritmias en ECG (MIT-BIH)
 
@@ -120,13 +120,13 @@ Evaluado sobre latidos normales (**N**) frente a latidos ventriculares prematuro
 
 | Factor Warp | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:----------------:|:----------------:|:-----------:|
-| **0.5x** | **100.00%** | 92.50% | 48.50% |
-| **0.8x** | **100.00%** | 94.00% | 50.00% |
-| **1.0x** | **100.00%** | 95.50% | 48.50% |
-| **1.2x** | **100.00%** | 76.00% | 48.00% |
-| **2.0x** | **100.00%** | 78.50% | 45.00% |
+| **0.5x** | **100.00%** | 92.50% | 56.50% |
+| **0.8x** | **100.00%** | 95.50% | 74.00% |
+| **1.0x** | **100.00%** | 96.00% | 73.50% |
+| **1.2x** | **100.00%** | 74.00% | 82.50% |
+| **2.0x** | **100.00%** | 68.50% | 85.00% |
 
-* **Observación:** Kairos103 alcanza **100.00% de precisión perfecta e invariante** en todos los factores de compresión y dilatación cardíaca. El Transformer cae bruscamente a $76\%$ cuando la frecuencia se acelera a $1.2\times$ o $2.0\times$.
+* **Observación:** En el complejo electrocardiográfico, el Mini-Transformer aprende con solvencia a velocidad nominal ($96.00\%$), pero cuando la frecuencia cardíaca se acelera a $1.2\times$ y $2.0\times$, su atención posicional se desalinea y cae a $74.00\%$ y $68.50\%$. Kairos103 mantiene un **100.00% de invarianza perfecta** en todos los regímenes temporales evaluados.
 
 ---
 

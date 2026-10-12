@@ -103,16 +103,16 @@ All models were trained **strictly on nominal speed ($1.0\times$)**, with zero t
 
 | Warp Factor | Speed Relative to Train | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:-----------------------:|:----------------:|:----------------:|:-----------:|
-| **0.5x** | Half speed ($2\times$ length) | **99.00%** | 31.00% | 40.50% |
-| **0.8x** | 20% slower | **98.00%** | 59.00% | 36.50% |
-| **1.0x** | Nominal control | **98.50%** | 53.50% | 41.00% |
-| **1.2x** | 20% faster | **98.00%** | 34.50% | 40.00% |
-| **2.0x** | Double speed ($0.5\times$ length) | **90.00%** | 24.50% | 43.50% |
+| **0.5x** | Half speed ($2\times$ length) | **99.00%** | 31.00% | 30.00% |
+| **0.8x** | 20% slower | **98.00%** | 39.50% | 38.50% |
+| **1.0x** | Nominal control | **98.50%** | 53.00% | **98.50%** |
+| **1.2x** | 20% faster | **98.00%** | 25.00% | 0.00% |
+| **2.0x** | Double speed ($0.5\times$ length) | **90.00%** | 24.50% | 0.50% |
 
 > [!NOTE]
-> **Statistical Resolution & Reproducibility:** Test suites consist of $N = 200$ independent signal epochs per warp factor. Consequently, empirical accuracy follows a discrete resolution of $\frac{1}{200} = 0.50\%$ (e.g., $198/200 = 99.00\%$, $197/200 = 98.50\%$, $180/200 = 90.00\%$). All results are reproducible via `dotnet run --project src/Kairos103.Cli -- benchmark --fast` and backed by standalone reports and SVG figures in the `./results/` directory.
+> **Statistical Resolution & Reproducibility:** Test suites consist of $N = 200$ independent signal epochs per warp factor. Consequently, empirical accuracy follows a discrete resolution of $\frac{1}{200} = 0.50\%$ (e.g., $198/200 = 99.00\%$, $197/200 = 98.50\%$, $180/200 = 90.00\%$). All results are reproducible via `dotnet run --project src/Kairos103.Cli -- export-plots --output ./results/` and backed by standalone reports and SVG figures in the `./results/` directory.
 
-* **Finding:** While the Mini-Transformer and LSTM degrade toward random chance (~25%–40%), Kairos103 maintains flat, robust accuracy ($\ge 98\%$) across almost the entire spectrum. The slight dip at $2.0\times$ ($90.00\%$) reflects discrete sampling effects near the Nyquist frequency as sequence length is halved.
+* **Finding:** The recurrent baseline (LSTM) converges strongly on nominal speed ($98.50\%$), but its strict reliance on rigid $\Delta t$ time-steps induces **catastrophic collapse down to $0.00\% - 0.50\%$** under accelerated time-warping ($1.2\times$ and $2.0\times$). In contrast, Kairos103 preserves flat, robust accuracy ($\ge 98\%$) across almost the entire spectrum.
 
 ### B. Real Biomedical Benchmark: Arrhythmia Detection in ECG (MIT-BIH)
 
@@ -120,13 +120,13 @@ Evaluated on Normal Sinus beats (**N**) vs. Premature Ventricular Contractions (
 
 | Warp Factor | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:----------------:|:----------------:|:-----------:|
-| **0.5x** | **100.00%** | 92.50% | 48.50% |
-| **0.8x** | **100.00%** | 94.00% | 50.00% |
-| **1.0x** | **100.00%** | 95.50% | 48.50% |
-| **1.2x** | **100.00%** | 76.00% | 48.00% |
-| **2.0x** | **100.00%** | 78.50% | 45.00% |
+| **0.5x** | **100.00%** | 92.50% | 56.50% |
+| **0.8x** | **100.00%** | 95.50% | 74.00% |
+| **1.0x** | **100.00%** | 96.00% | 73.50% |
+| **1.2x** | **100.00%** | 74.00% | 82.50% |
+| **2.0x** | **100.00%** | 68.50% | 85.00% |
 
-* **Finding:** Kairos103 preserves **100.00% invariant accuracy** across all heart-rate variations. In contrast, the Transformer exhibits sharp degradation down to $76.0\%$ when beat duration contracts at $1.2\times$ and $2.0\times$.
+* **Finding:** On clinical electrocardiograms, the Mini-Transformer learns proficiently at nominal speed ($96.00\%$), but as heart rate accelerates ($1.2\times$ and $2.0\times$), its positional attention misaligns and degrades to $74.00\%$ and $68.50\%$. Kairos103 preserves **100.00% invariant accuracy** across all temporal regimes evaluated.
 
 ---
 

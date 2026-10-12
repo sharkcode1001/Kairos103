@@ -69,19 +69,19 @@ public static class RunBenchmarkCommand
         });
         Console.WriteLine(" -> Completado.");
 
-        int tfEpochs = fastMode ? 2 : 4;
+        int tfEpochs = fastMode ? 8 : 12;
         Console.Write($"      [2/3] Entrenando Baseline Mini-Transformer (Attention + PE con Adam)... ");
         var transformer = new MiniTransformer(classCount);
-        transformer.Train(trainData, epochs: tfEpochs, lr: 0.005, (curr, tot) =>
+        transformer.Train(trainData, epochs: tfEpochs, lr: 0.01, (curr, tot) =>
         {
             Console.Write($"\r      [2/3] Entrenando Baseline Mini-Transformer (Attention + PE con Adam)... Época {curr}/{tot}");
         });
         Console.WriteLine(" -> Completado.");
 
-        int lstmEpochs = fastMode ? 2 : 4;
+        int lstmEpochs = fastMode ? 8 : 12;
         Console.Write($"      [3/3] Entrenando Baseline Simple LSTM (BPTT con Adam)... ");
         var lstm = new SimpleLstm(classCount);
-        lstm.Train(trainData, epochs: lstmEpochs, lr: 0.005, (curr, tot) =>
+        lstm.Train(trainData, epochs: lstmEpochs, lr: 0.01, (curr, tot) =>
         {
             Console.Write($"\r      [3/3] Entrenando Baseline Simple LSTM (BPTT con Adam)... Época {curr}/{tot}");
         });

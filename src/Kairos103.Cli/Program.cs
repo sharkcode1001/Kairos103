@@ -75,7 +75,7 @@ switch (command)
     case "export-report":
     {
         string output = "./results";
-        string dataset = "synthetic";
+        string dataset = "all";
         bool fast = true;
 
         for (int i = 1; i < args.Length; i++)

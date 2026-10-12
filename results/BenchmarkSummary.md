@@ -1,6 +1,6 @@
 # Consolidated Technical Benchmark Report: Kairos103
 
-* **Date:** 2026-10-12 16:43:53 UTC
+* **Date:** 2026-10-12 22:33:24 UTC
 * **Platform:** .NET 10.0 (Asynchronous C#, Headless CLI)
 * **Architecture:** Modular Rank-Order Network with Coupled N=4 Subregions
 
@@ -13,21 +13,21 @@ Experimental results validate stability against affine temporal transformations 
 
 | Warp Factor | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:----------------:|:----------------:|:-----------:|
-| 0.5x | 99.00% | 31.00% | 30.00% |
-| 0.8x | 98.00% | 49.50% | 38.50% |
-| 1.0x | 98.50% | 80.50% | 98.50% |
-| 1.2x | 98.00% | 39.00% | 0.00% |
-| 2.0x | 90.00% | 24.50% | 0.50% |
+| 0.5x | 99.00% | 45.38% | 75.62% |
+| 0.8x | 98.88% | 63.62% | 97.38% |
+| 1.0x | 98.75% | 99.88% | 99.88% |
+| 1.2x | 98.38% | 45.62% | 99.38% |
+| 2.0x | 91.62% | 46.38% | 51.75% |
 
 
 
 #### Computational Efficiency Metrics
-- **Kairos Front-End MACs (continuous):** 61.440.000
-- **Kairos Discrete Spikes (events):** 63.999
-- **Kairos Readout Accumulations:** 64.000
-- **Mini-Transformer MACs:** 897.568.000
-- **Simple LSTM MACs:** 155.648.000
-- **Allocated Heap Memory:** 449.370.192 bytes
+- **Kairos Front-End MACs (continuous):** 245.760.000
+- **Kairos Discrete Spikes (events):** 255.994
+- **Kairos Readout Accumulations:** 256.000
+- **Mini-Transformer MACs:** 3.590.272.000
+- **Simple LSTM MACs:** 622.592.000
+- **Allocated Heap Memory:** 1.590.273.672 bytes
 
 ### B. Dataset: ECG
 
@@ -35,19 +35,19 @@ Experimental results validate stability against affine temporal transformations 
 
 | Warp Factor | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:----------------:|:----------------:|:-----------:|
-| 0.5x | 100.00% | 90.00% | 56.50% |
-| 0.8x | 100.00% | 94.50% | 74.00% |
-| 1.0x | 100.00% | 97.00% | 73.50% |
-| 1.2x | 100.00% | 88.50% | 82.50% |
-| 2.0x | 100.00% | 88.50% | 85.00% |
+| 0.5x | 100.00% | 92.00% | 66.25% |
+| 0.8x | 99.75% | 95.25% | 64.00% |
+| 1.0x | 100.00% | 97.25% | 65.50% |
+| 1.2x | 100.00% | 84.50% | 62.50% |
+| 2.0x | 100.00% | 91.25% | 65.50% |
 
 
 
 #### Computational Efficiency Metrics
-- **Kairos Front-End MACs (continuous):** 61.440.000
-- **Kairos Discrete Spikes (events):** 58.787
-- **Kairos Readout Accumulations:** 31.744
-- **Mini-Transformer MACs:** 1.711.072.000
-- **Simple LSTM MACs:** 218.720.000
-- **Allocated Heap Memory:** 690.794.344 bytes
+- **Kairos Front-End MACs (continuous):** 122.880.000
+- **Kairos Discrete Spikes (events):** 117.881
+- **Kairos Readout Accumulations:** 63.476
+- **Mini-Transformer MACs:** 3.422.144.000
+- **Simple LSTM MACs:** 437.440.000
+- **Allocated Heap Memory:** 1.332.848.432 bytes
 

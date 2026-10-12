@@ -94,7 +94,7 @@ public sealed class PairwiseTrainer
             {
                 if (features[f] > 0.0)
                 {
-                    score += Weights[c][f];
+                    score += Weights[c][f] * features[f];
                     accOps++;
                 }
             }

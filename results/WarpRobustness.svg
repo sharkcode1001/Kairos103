@@ -6,9 +6,9 @@
   <text x="40" y="70" fill="#aaa" font-family="sans-serif" font-size="12">100%</text>
   <text x="40" y="185" fill="#aaa" font-family="sans-serif" font-size="12">50%</text>
   <text x="40" y="300" fill="#aaa" font-family="sans-serif" font-size="12">0%</text>
-  <polyline points="80.0,62.4 180.0,64.8 246.7,63.6 313.3,64.8 580.0,84.0" fill="none" stroke="#00e676" stroke-width="3"/>
-  <polyline points="80.0,225.6 180.0,181.2 246.7,106.8 313.3,206.4 580.0,241.2" fill="none" stroke="#ff5252" stroke-width="2" stroke-dasharray="4"/>
-  <polyline points="80.0,228.0 180.0,207.6 246.7,63.6 313.3,300.0 580.0,298.8" fill="none" stroke="#40c4ff" stroke-width="2" stroke-dasharray="2"/>
+  <polyline points="80.0,62.4 180.0,62.7 246.7,63.0 313.3,63.9 580.0,80.1" fill="none" stroke="#00e676" stroke-width="3"/>
+  <polyline points="80.0,191.1 180.0,147.3 246.7,60.3 313.3,190.5 580.0,188.7" fill="none" stroke="#ff5252" stroke-width="2" stroke-dasharray="4"/>
+  <polyline points="80.0,118.5 180.0,66.3 246.7,60.3 313.3,61.5 580.0,175.8" fill="none" stroke="#40c4ff" stroke-width="2" stroke-dasharray="2"/>
   <circle cx="140" cy="335" r="5" fill="#00e676"/>
   <text x="155" y="339" fill="#fff" font-family="sans-serif" font-size="12">Kairos103</text>
   <circle cx="280" cy="335" r="5" fill="#ff5252"/>

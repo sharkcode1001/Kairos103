@@ -122,4 +122,20 @@ public class ClassifierTests
             if (File.Exists(tempStd)) File.Delete(tempStd);
         }
     }
+
+    [Fact]
+    public void PairwiseTrainer_EvaluateOnRealDatasets()
+    {
+        string synthTrain = "datasets/synthetic/warpstress_train.csv";
+        string synthTest = "datasets/synthetic/warpstress_test_1.0x.csv";
+        if (File.Exists(synthTrain) && File.Exists(synthTest))
+        {
+            var model = new KairosClassifier(subregionCount: 16);
+            model.Fit(synthTrain, epochs: 20);
+            var samples = SignalDataset.LoadCsv(synthTest);
+            int correct = samples.Count(s => model.Predict(s.Values, s.EffectiveLength) == s.Label);
+            double acc = (double)correct / samples.Count;
+            Assert.True(acc >= 0.95, $"Expected accuracy >= 0.95 on synthetic 1.0x, got {acc}");
+        }
+    }
 }

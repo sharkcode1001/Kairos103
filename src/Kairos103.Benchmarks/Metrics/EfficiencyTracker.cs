@@ -11,7 +11,13 @@ public sealed class EfficiencyTracker
     public long TotalFrontEndMacs { get; private set; }
     public long TotalTransformerMacs { get; private set; }
     public long TotalLstmMacs { get; private set; }
-    public long TotalContinuousMacs => TotalTransformerMacs + TotalLstmMacs;
+
+    /// <summary>
+    /// Total operations executed across the complete Kairos103 end-to-end pipeline:
+    /// Continuous Front-End Transduction MACs + Discrete Spike Events + Classifier Readout Accumulations.
+    /// </summary>
+    public long TotalKairosOps => TotalFrontEndMacs + TotalSpikes + TotalAccumulateOps;
+
     public long InitialAllocatedBytes { get; private set; }
     public long FinalAllocatedBytes { get; private set; }
 
@@ -37,9 +43,28 @@ public sealed class EfficiencyTracker
 
     public long MemoryAllocatedBytes => Math.Max(0, FinalAllocatedBytes - InitialAllocatedBytes);
 
-    public double ComputeEfficiencyRatio()
+    /// <summary>
+    /// End-to-end computational advantage of Kairos103 over Mini-Transformer:
+    /// Ratio = MiniTransformerMacs / TotalKairosOps (FrontEndMacs + Spikes + ReadoutOps).
+    /// </summary>
+    public double ComputeEfficiencyRatioVsTransformer()
     {
-        long discreteTotal = TotalSpikes + TotalAccumulateOps;
-        return discreteTotal > 0 ? (double)TotalContinuousMacs / discreteTotal : 0.0;
+        long kairosTotal = TotalKairosOps;
+        return kairosTotal > 0 ? (double)TotalTransformerMacs / kairosTotal : 0.0;
     }
+
+    /// <summary>
+    /// End-to-end computational advantage of Kairos103 over Simple LSTM:
+    /// Ratio = SimpleLstmMacs / TotalKairosOps (FrontEndMacs + Spikes + ReadoutOps).
+    /// </summary>
+    public double ComputeEfficiencyRatioVsLstm()
+    {
+        long kairosTotal = TotalKairosOps;
+        return kairosTotal > 0 ? (double)TotalLstmMacs / kairosTotal : 0.0;
+    }
+
+    /// <summary>
+    /// Default end-to-end efficiency ratio against the dense self-attention baseline (Transformer).
+    /// </summary>
+    public double ComputeEfficiencyRatio() => ComputeEfficiencyRatioVsTransformer();
 }

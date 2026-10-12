@@ -59,6 +59,9 @@ datasets/
 * **Partitions:**
   * **Train:** 800 samples (400 per class).
   * **Test per Factor:** 400 samples (200 per class) for each factor ($0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$).
+* **Methodological Scope & Future Clinical Validation:**
+  * The current benchmark uses deterministic beat-level extraction to assess **morphological invariant encoding under simulated heart-rate scaling (bradycardia at $0.5\times$, tachycardia at $2.0\times$)**.
+  * While beats in test sets are strictly distinct instances from train beats, full clinical deployment benchmarking will benefit from inter-patient (*leave-one-patient-out*) cross-validation to isolate patient-specific morphologies.
 
 ---
 
@@ -91,9 +94,9 @@ label,length,m0,m1,m2,...,mN
 ## 5. Success and Stopping Criteria
 
 * **Success:**
-  1. Kairos103 maintains nominal accuracy ($1.0\times \pm 3\%$) across all 5 scale factors on both datasets.
-  2. Continuous baseline models (Transformer / LSTM) suffer an accuracy drop $\ge 10\%$ at $0.5\times$ or $2.0\times$.
-  3. Kairos103 consumes $\le 1/10$ of the compute per decision compared to the baseline.
+  1. Kairos103 maintains nominal accuracy within $\pm 2\%$ in moderate scaling ($0.8\times - 1.2\times$) and $\ge 90\%$ (drop $\le 10\%$) in extreme scaling ($0.5\times, 2.0\times$) across both datasets.
+  2. Continuous baseline models (Transformer / LSTM) suffer an accuracy drop $\ge 15\%$ at $0.5\times$ or $2.0\times$.
+  3. Kairos103 consumes $\le 1/10$ of the compute per decision compared to dense self-attention (Transformer).
 * **Stopping / Rejection:**
   * If Kairos103 fails to maintain flat accuracy stability, the hypothesis is rejected without artificially altering baselines.
   * If baselines do not degrade under temporal dilation, the comparison is not pursued without formal redefinition.

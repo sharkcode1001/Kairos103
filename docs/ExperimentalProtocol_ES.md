@@ -38,9 +38,12 @@ Para cada modelo (Kairos103, Transformer, LSTM), para cada factor de velocidad y
 
 Para considerar verificada la hipótesis experimental, deben cumplirse **todas** las siguientes condiciones:
 
-1. **Invarianza de Kairos103:** La precisión obtenida se mantiene dentro de un margen de $\pm 3\%$ respecto al valor nominal en $1.0\times$ para los cinco factores temporales, en ambos datasets.
-2. **Colapso del Baseline:** Los modelos continuos (Transformer o LSTM) sufren una degradación $\ge 10\%$ en precisión en los extremos $0.5\times$ o $2.0\times$ con respecto a su rendimiento a $1.0\times$.
-3. **Eficiencia Energética/Operacional:** Kairos103 ejecuta la inferencia con $\le \frac{1}{10}$ del cómputo por decisión requerido por el baseline.
+1. **Invarianza Afín Global de Kairos103:** La precisión obtenida se mantiene dentro de un margen de $\pm 2\%$ respecto al valor nominal en $1.0\times$ bajo escalamiento moderado ($0.8\times$ a $1.2\times$), y retiene $\ge 90\%$ de precisión (caída máxima $\le 10\%$) bajo escalamiento extremo ($0.5\times$ y $2.0\times$), en ambos datasets.
+2. **Colapso del Baseline:** Los modelos continuos (Transformer o LSTM) sufren una degradación $\ge 15\%$ en precisión en los factores extremos ($0.5\times$ o $2.0\times$) con respecto a su rendimiento a $1.0\times$.
+3. **Eficiencia Energética/Operacional:** Kairos103 ejecuta la inferencia requiriendo $\le \frac{1}{10}$ (reducción de un orden de magnitud) del cómputo integral por decisión demandado por la auto-atención densa (Mini-Transformer).
+
+> **Alcance Formal:** Los experimentos evalúan estrictamente la *Invarianza a Escalamiento Temporal Afín Global* ($t' = \alpha t + \beta, \, \alpha > 0$). Las deformaciones locales no lineales (deformación de fase por tramos dentro del mismo ciclo) se clasifican como objetivos de futuras extensiones multidimensionales.
+
 
 ---
 

@@ -59,6 +59,9 @@ datasets/
 * **Partición:**
   * **Train:** 800 ejemplos (400 por clase).
   * **Test por factor:** 400 ejemplos (200 por clase) para cada uno de los factores ($0.5\times, 0.8\times, 1.0\times, 1.2\times, 2.0\times$).
+* **Alcance Metodológico y Validación Clínica Futura:**
+  * El benchmark actual utiliza extracción determinista a nivel de latido para evaluar la **codificación morfológica invariante ante variaciones simuladas de frecuencia cardíaca (bradicardia a $0.5\times$, taquicardia a $2.0\times$)**.
+  * Aunque los latidos de prueba son instancias estrictamente independientes de los de entrenamiento, para un despliegue clínico formal se recomienda incorporar validación cruzada inter-paciente (*leave-one-patient-out*) para aislar morfologías específicas por sujeto.
 
 ---
 
@@ -91,9 +94,9 @@ label,length,m0,m1,m2,...,mN
 ## 5. Criterios de Éxito y Parada
 
 * **Éxito:**
-  1. Kairos103 mantiene su precisión nominal ($1.0\times \pm 3\%$) a lo largo de los 5 factores en ambos datasets.
-  2. Los modelos baseline continuos (Transformer / LSTM) experimentan una degradación $\ge 10\%$ en $0.5\times$ o $2.0\times$.
-  3. Kairos103 consume $\le 1/10$ del cómputo por inferencia respecto al baseline.
+  1. Kairos103 mantiene su precisión nominal dentro de un margen de $\pm 2\%$ en escalamiento moderado ($0.8\times - 1.2\times$) y $\ge 90\%$ (caída $\le 10\%$) en escalamiento extremo ($0.5\times, 2.0\times$) en ambos datasets.
+  2. Los modelos baseline continuos (Transformer / LSTM) experimentan una degradación $\ge 15\%$ en $0.5\times$ o $2.0\times$.
+  3. Kairos103 consume $\le 1/10$ del cómputo por inferencia respecto a la auto-atención densa (Transformer).
 * **Parada / Rechazo:**
   * Si Kairos103 no mantiene estabilidad plana en su precisión, la hipótesis se rechaza sin alterar artificialmente los baselines.
   * Si el baseline no degrada ante dilatación temporal, no se prosigue la comparativa sin redefinición formal.

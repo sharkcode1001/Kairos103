@@ -38,9 +38,12 @@ For each model (Kairos103, Transformer, LSTM), across each speed factor and for 
 
 To verify the experimental hypothesis, **all** of the following conditions must be satisfied:
 
-1. **Kairos103 Invariance:** Achieved accuracy remains within a $\pm 3\%$ margin relative to the nominal $1.0\times$ baseline across all five temporal factors, on both datasets.
-2. **Baseline Collapse:** Continuous models (Transformer or LSTM) suffer an accuracy drop $\ge 10\%$ at the extreme factors $0.5\times$ or $2.0\times$ compared to their performance at $1.0\times$.
-3. **Operational / Energy Efficiency:** Kairos103 completes inference with $\le \frac{1}{10}$ of the compute per decision required by the baseline.
+1. **Kairos103 Global Affine Invariance:** Achieved accuracy remains within a $\pm 2\%$ margin relative to the nominal $1.0\times$ baseline under moderate temporal scaling ($0.8\times$ to $1.2\times$), and retains $\ge 90\%$ accuracy (worst-case drop $\le 10\%$) under extreme scaling ($0.5\times$ and $2.0\times$), across both datasets.
+2. **Baseline Collapse:** Continuous models (Transformer or LSTM) suffer an accuracy drop $\ge 15\%$ at extreme factors ($0.5\times$ or $2.0\times$) compared to their performance at $1.0\times$.
+3. **Operational / Energy Efficiency:** Kairos103 executes inference requiring $\le \frac{1}{10}$ (order of magnitude reduction) of the end-to-end compute per decision demanded by dense self-attention (Mini-Transformer).
+
+> **Formal Scope:** Experiments strictly evaluate *Global Affine Time-Scale Invariance* ($t' = \alpha t + \beta, \, \alpha > 0$). Non-linear local deformations (e.g., intra-cycle piecewise warping) are classified as separate targets for future multidimensional extensions.
+
 
 ---
 

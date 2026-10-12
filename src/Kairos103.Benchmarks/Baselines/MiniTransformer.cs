@@ -3,9 +3,10 @@ using Kairos103.Benchmarks.Data;
 namespace Kairos103.Benchmarks.Baselines;
 
 /// <summary>
-/// Modelo Baseline de Mini-Transformer temporal con auto-atención y codificación posicional fija (PE).
-/// Cuenta con entrenamiento por retropropagación estándar (Cross-Entropy + Adam) altamente optimizado en C# puro.
-/// Registra las multiplicaciones continuas acumuladas (MACs) requeridas por inferencia.
+/// Modelo Baseline de Mini-Transformer temporal con capa de auto-atención y codificación posicional fija (PE).
+/// Arquitectura: Proyecciones Q/K fijas normalizadas (atención estilo reservorio), proyección V y cabezal clasificador
+/// entrenados end-to-end con Cross-Entropy + optimizador Adam en C# nativo.
+/// Soporta modo de agregación temporal: Global Average Pooling (v1) o Split Temporal Half-Pooling (v2).
 /// </summary>
 public sealed class MiniTransformer
 {
@@ -13,6 +14,8 @@ public sealed class MiniTransformer
     public int NumHeads { get; }
     public int NumClasses { get; }
     public int MaxSeqLen { get; }
+    public bool SplitPooling { get; }
+    public int PooledDim => SplitPooling ? 2 * DModel : DModel;
 
     private readonly double[,] _posEncoding;
     private readonly double[,] _wQ;
@@ -27,12 +30,13 @@ public sealed class MiniTransformer
     private readonly double[] _mBias, _vBias;
     private int _adamStep;
 
-    public MiniTransformer(int numClasses, int dModel = 16, int maxSeqLen = 360, int seed = 42)
+    public MiniTransformer(int numClasses, int dModel = 16, int maxSeqLen = 360, bool splitPooling = true, int seed = 42)
     {
         DModel = dModel;
         NumHeads = 2;
         NumClasses = numClasses;
         MaxSeqLen = maxSeqLen;
+        SplitPooling = splitPooling;
 
         var rng = new Random(seed);
         _posEncoding = GeneratePositionalEncoding(maxSeqLen, dModel);
@@ -41,11 +45,11 @@ public sealed class MiniTransformer
         _wQ = RandomMatrix(dModel, dModel, rng, scale);
         _wK = RandomMatrix(dModel, dModel, rng, scale);
         _wV = RandomMatrix(dModel, dModel, rng, scale);
-        _classifier = RandomMatrix(numClasses, dModel, rng, scale);
+        _classifier = RandomMatrix(numClasses, PooledDim, rng, scale);
         _classifierBias = new double[numClasses];
 
         _mV = new double[dModel, dModel]; _vV = new double[dModel, dModel];
-        _mCls = new double[numClasses, dModel]; _vCls = new double[numClasses, dModel];
+        _mCls = new double[numClasses, PooledDim]; _vCls = new double[numClasses, PooledDim];
         _mBias = new double[numClasses]; _vBias = new double[numClasses];
         _adamStep = 0;
     }
@@ -136,16 +140,35 @@ public sealed class MiniTransformer
             }
         }
 
-        // Mean Pooling
-        double[] pooled = new double[DModel];
-        for (int d = 0; d < DModel; d++)
+        // Pooling (Split Half-Pooling o Global Mean Pooling)
+        int h1 = Math.Max(1, seqLen / 2);
+        int h2 = Math.Max(1, seqLen - h1);
+        double invH1 = 1.0 / h1;
+        double invH2 = 1.0 / h2;
+
+        double[] pooled = new double[PooledDim];
+        if (SplitPooling)
         {
-            double s = 0.0;
-            for (int i = 0; i < seqLen; i++)
+            for (int d = 0; d < DModel; d++)
             {
-                s += context[i, d];
+                double s1 = 0.0;
+                for (int i = 0; i < h1; i++) s1 += context[i, d];
+                pooled[d] = s1 * invH1;
+
+                double s2 = 0.0;
+                for (int i = h1; i < seqLen; i++) s2 += context[i, d];
+                pooled[DModel + d] = s2 * invH2;
             }
-            pooled[d] = s / seqLen;
+        }
+        else
+        {
+            double invSeqLen = 1.0 / seqLen;
+            for (int d = 0; d < DModel; d++)
+            {
+                double s = 0.0;
+                for (int i = 0; i < seqLen; i++) s += context[i, d];
+                pooled[d] = s * invSeqLen;
+            }
         }
 
         // Linear Classifier
@@ -153,7 +176,7 @@ public sealed class MiniTransformer
         for (int c = 0; c < NumClasses; c++)
         {
             double sum = _classifierBias[c];
-            for (int d = 0; d < DModel; d++)
+            for (int d = 0; d < PooledDim; d++)
             {
                 sum += _classifier[c, d] * pooled[d];
                 macs++;
@@ -256,12 +279,34 @@ public sealed class MiniTransformer
                     }
                 }
 
-                double[] pooled = new double[DModel];
-                for (int d = 0; d < DModel; d++)
+                int h1 = Math.Max(1, seqLen / 2);
+                int h2 = Math.Max(1, seqLen - h1);
+                double invH1 = 1.0 / h1;
+                double invH2 = 1.0 / h2;
+
+                double[] pooled = new double[PooledDim];
+                if (SplitPooling)
                 {
-                    double s = 0.0;
-                    for (int i = 0; i < seqLen; i++) s += context[i, d];
-                    pooled[d] = s / seqLen;
+                    for (int d = 0; d < DModel; d++)
+                    {
+                        double s1 = 0.0;
+                        for (int i = 0; i < h1; i++) s1 += context[i, d];
+                        pooled[d] = s1 * invH1;
+
+                        double s2 = 0.0;
+                        for (int i = h1; i < seqLen; i++) s2 += context[i, d];
+                        pooled[DModel + d] = s2 * invH2;
+                    }
+                }
+                else
+                {
+                    double invSeqLen = 1.0 / seqLen;
+                    for (int d = 0; d < DModel; d++)
+                    {
+                        double s = 0.0;
+                        for (int i = 0; i < seqLen; i++) s += context[i, d];
+                        pooled[d] = s * invSeqLen;
+                    }
                 }
 
                 double[] logits = new double[NumClasses];
@@ -269,7 +314,7 @@ public sealed class MiniTransformer
                 for (int c = 0; c < NumClasses; c++)
                 {
                     double sum = _classifierBias[c];
-                    for (int d = 0; d < DModel; d++) sum += _classifier[c, d] * pooled[d];
+                    for (int d = 0; d < PooledDim; d++) sum += _classifier[c, d] * pooled[d];
                     logits[c] = sum;
                     if (sum > maxL) maxL = sum;
                 }
@@ -290,48 +335,85 @@ public sealed class MiniTransformer
                     dLogits[c] = probs[c] - (c == sample.Label ? 1.0 : 0.0);
                 }
 
-                double[,] gradCls = new double[NumClasses, DModel];
+                double[,] gradCls = new double[NumClasses, PooledDim];
                 double[] gradBias = new double[NumClasses];
-                double[] dPooled = new double[DModel];
+                double[] dPooled = new double[PooledDim];
 
                 for (int c = 0; c < NumClasses; c++)
                 {
                     gradBias[c] = dLogits[c];
-                    for (int d = 0; d < DModel; d++)
+                    for (int d = 0; d < PooledDim; d++)
                     {
                         gradCls[c, d] = dLogits[c] * pooled[d];
                         dPooled[d] += dLogits[c] * _classifier[c, d];
                     }
                 }
 
-                // 3. Gradiente rápido vectorizado O(seqLen^2 + seqLen * DModel) para W_V
-                // Suma de atención por columna j: s_j = sum_i attn[i, j]
-                double invSeqLen = 1.0 / seqLen;
-                double[] colAttnWeight = new double[seqLen];
-                for (int j = 0; j < seqLen; j++)
-                {
-                    double s = 0.0;
-                    for (int i = 0; i < seqLen; i++) s += attn[i, j];
-                    colAttnWeight[j] = s * invSeqLen;
-                }
-
-                // Proyección ponderada x: xWeighted[m] = sum_j x[j, m] * colAttnWeight[j]
-                double[] xWeighted = new double[DModel];
-                for (int m = 0; m < DModel; m++)
-                {
-                    double acc = 0.0;
-                    for (int j = 0; j < seqLen; j++) acc += x[j, m] * colAttnWeight[j];
-                    xWeighted[m] = acc;
-                }
-
-                // Producto exterior rápido para gradV: gradV[m, d] = xWeighted[m] * dPooled[d]
+                // 3. Gradiente rápido vectorizado para W_V
                 double[,] gradV = new double[DModel, DModel];
-                for (int m = 0; m < DModel; m++)
+                if (SplitPooling)
                 {
-                    double xm = xWeighted[m];
-                    for (int d = 0; d < DModel; d++)
+                    double[] s1 = new double[seqLen];
+                    double[] s2 = new double[seqLen];
+                    for (int j = 0; j < seqLen; j++)
                     {
-                        gradV[m, d] = xm * dPooled[d];
+                        double a1 = 0.0;
+                        for (int i = 0; i < h1; i++) a1 += attn[i, j];
+                        s1[j] = a1 * invH1;
+
+                        double a2 = 0.0;
+                        for (int i = h1; i < seqLen; i++) a2 += attn[i, j];
+                        s2[j] = a2 * invH2;
+                    }
+
+                    double[] xW1 = new double[DModel];
+                    double[] xW2 = new double[DModel];
+                    for (int m = 0; m < DModel; m++)
+                    {
+                        double acc1 = 0.0, acc2 = 0.0;
+                        for (int j = 0; j < seqLen; j++)
+                        {
+                            acc1 += x[j, m] * s1[j];
+                            acc2 += x[j, m] * s2[j];
+                        }
+                        xW1[m] = acc1;
+                        xW2[m] = acc2;
+                    }
+
+                    for (int m = 0; m < DModel; m++)
+                    {
+                        for (int d = 0; d < DModel; d++)
+                        {
+                            gradV[m, d] = (xW1[m] * dPooled[d]) + (xW2[m] * dPooled[DModel + d]);
+                        }
+                    }
+                }
+                else
+                {
+                    double invSeqLen = 1.0 / seqLen;
+                    double[] colAttnWeight = new double[seqLen];
+                    for (int j = 0; j < seqLen; j++)
+                    {
+                        double s = 0.0;
+                        for (int i = 0; i < seqLen; i++) s += attn[i, j];
+                        colAttnWeight[j] = s * invSeqLen;
+                    }
+
+                    double[] xWeighted = new double[DModel];
+                    for (int m = 0; m < DModel; m++)
+                    {
+                        double acc = 0.0;
+                        for (int j = 0; j < seqLen; j++) acc += x[j, m] * colAttnWeight[j];
+                        xWeighted[m] = acc;
+                    }
+
+                    for (int m = 0; m < DModel; m++)
+                    {
+                        double xm = xWeighted[m];
+                        for (int d = 0; d < DModel; d++)
+                        {
+                            gradV[m, d] = xm * dPooled[d];
+                        }
                     }
                 }
 

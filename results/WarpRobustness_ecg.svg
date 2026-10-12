@@ -7,7 +7,7 @@
   <text x="40" y="185" fill="#aaa" font-family="sans-serif" font-size="12">50%</text>
   <text x="40" y="300" fill="#aaa" font-family="sans-serif" font-size="12">0%</text>
   <polyline points="80.0,60.0 180.0,60.0 246.7,60.0 313.3,60.0 580.0,60.0" fill="none" stroke="#00e676" stroke-width="3"/>
-  <polyline points="80.0,78.0 180.0,70.8 246.7,69.6 313.3,122.4 580.0,135.6" fill="none" stroke="#ff5252" stroke-width="2" stroke-dasharray="4"/>
+  <polyline points="80.0,84.0 180.0,73.2 246.7,67.2 313.3,87.6 580.0,87.6" fill="none" stroke="#ff5252" stroke-width="2" stroke-dasharray="4"/>
   <polyline points="80.0,164.4 180.0,122.4 246.7,123.6 313.3,102.0 580.0,96.0" fill="none" stroke="#40c4ff" stroke-width="2" stroke-dasharray="2"/>
   <circle cx="140" cy="335" r="5" fill="#00e676"/>
   <text x="155" y="339" fill="#fff" font-family="sans-serif" font-size="12">Kairos103</text>

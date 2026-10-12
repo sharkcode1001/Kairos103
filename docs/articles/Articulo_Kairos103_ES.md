@@ -104,15 +104,17 @@ Todos los modelos fueron entrenados **exclusivamente a velocidad nominal ($1.0\t
 | Factor Warp | Velocidad | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:---------:|:----------------:|:----------------:|:-----------:|
 | **0.5x** | Doble lentitud | **99.00%** | 31.00% | 30.00% |
-| **0.8x** | 20% más lenta | **98.00%** | 39.50% | 38.50% |
-| **1.0x** | Nominal (Control) | **98.50%** | 53.00% | **98.50%** |
-| **1.2x** | 20% más rápida | **98.00%** | 25.00% | 0.00% |
+| **0.8x** | 20% más lenta | **98.00%** | 49.50% | 38.50% |
+| **1.0x** | Nominal (Control) | **98.50%** | **80.50%** | **98.50%** |
+| **1.2x** | 20% más rápida | **98.00%** | 39.00% | 0.00% |
 | **2.0x** | Doble rapidez | **90.00%** | 24.50% | 0.50% |
 
 > [!NOTE]
-> **Resolución Estadística y Reproducibilidad:** Los conjuntos de prueba evaluados constan de $N = 200$ muestras independientes por factor. Por ello, la resolución empírica es discreta en pasos de $\frac{1}{200} = 0.50\%$ (ej. $198/200 = 99.00\%$, $197/200 = 98.50\%$, $180/200 = 90.00\%$). Todas las mediciones son reproducibles mediante `dotnet run --project src/Kairos103.Cli -- export-plots --output ./results/` y se encuentran respaldadas con sus gráficos vectoriales y reporte Markdown consolidado en el directorio `results/`.
+> **Arquitectura del Mini-Transformer y Ablación de Pooling:** Para un baseline reproducible en C# nativo sin dependencias de frameworks externos, el Mini-Transformer implementa una capa de auto-atención con proyecciones $Q/K$ fijas normalizadas (estilo reservorio / ELM), proyección $V$ y cabezal clasificador entrenados end-to-end con Adam. Para preservar la dirección de la secuencia sin destruir el orden temporal que confunden los modelos continuos, se utiliza agregación temporal por mitades (*split-half temporal pooling*).
+> 
+> **Fenómeno de Inversión en la LSTM:** El colapso a $0.00\%$ de la LSTM a $1.2\times$ fue auditado mediante matriz de confusión empírica. El modelo no degenera hacia una sola clase (~50 predicciones por clase), sino que experimenta una **inversión simétrica observada** ($0 \leftrightarrow 2$ y $1 \leftrightarrow 3$), consistente con la hipótesis de que el corrimiento de fase temporal desplaza las trayectorias de los atractores del estado recurrente $h(t)$.
 
-* **Observación:** El baseline recurrente (LSTM) logra converger plenamente a velocidad nominal ($98.50\%$), pero su dependencia estricta del marco de tiempo discreto $\Delta t$ provoca su **colapso catastrófico hasta el $0.00\% - 0.50\%$** bajo dilatación temporal acelerada ($1.2\times$ y $2.0\times$). Por su parte, Kairos103 mantiene una precisión prácticamente plana ($\ge 98\%$) en casi todo el rango operativo.
+* **Observación:** Ambos baselines alcanzan una alta convergencia a velocidad nominal ($80.50\%$ en Transformer y $98.50\%$ en LSTM), pero sufren un colapso severo ante dilatación temporal: el Transformer cae hasta el nivel de puro azar ($24.50\%$, donde $1/4 = 25\%$), mientras que Kairos103 mantiene una estabilidad prácticamente plana ($\ge 98\%$) en casi todo el rango operativo.
 
 ### B. Dataset Biomédico Real: Detección de Arritmias en ECG (MIT-BIH)
 
@@ -120,13 +122,13 @@ Evaluado sobre latidos normales (**N**) frente a latidos ventriculares prematuro
 
 | Factor Warp | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:----------------:|:----------------:|:-----------:|
-| **0.5x** | **100.00%** | 92.50% | 56.50% |
-| **0.8x** | **100.00%** | 95.50% | 74.00% |
-| **1.0x** | **100.00%** | 96.00% | 73.50% |
-| **1.2x** | **100.00%** | 74.00% | 82.50% |
-| **2.0x** | **100.00%** | 68.50% | 85.00% |
+| **0.5x** | **100.00%** | 90.00% | 56.50% |
+| **0.8x** | **100.00%** | 94.50% | 74.00% |
+| **1.0x** | **100.00%** | 97.00% | 73.50% |
+| **1.2x** | **100.00%** | 88.50% | 82.50% |
+| **2.0x** | **100.00%** | 88.50% | 85.00% |
 
-* **Observación:** En el complejo electrocardiográfico, el Mini-Transformer aprende con solvencia a velocidad nominal ($96.00\%$), pero cuando la frecuencia cardíaca se acelera a $1.2\times$ y $2.0\times$, su atención posicional se desalinea y cae a $74.00\%$ y $68.50\%$. Kairos103 mantiene un **100.00% de invarianza perfecta** en todos los regímenes temporales evaluados.
+* **Observación:** En el complejo electrocardiográfico, el Mini-Transformer alcanza un **$97.00\%$** a velocidad nominal, pero se degrada progresivamente hasta el **$88.50\%$** bajo dilataciones extremas. Kairos103 mantiene un **100.00% de invarianza perfecta** en todos los factores evaluados.
 
 ---
 

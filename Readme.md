@@ -174,17 +174,27 @@ Kairos103/
 The console application provides direct commands for terminal reproducibility:
 
 ```bash
-# 1. Run quick comparative benchmark (Kairos103 vs Transformer vs LSTM)
+# === BLACK-BOX WORKFLOW (TRAIN, PREDICT, EVALUATE) ===
+
+# 1. Train your model on any 1D time-series CSV and save to disk
+dotnet run --project src/Kairos103.Cli -- train --data datasets/synthetic/warpstress_train.csv --output model.kairos --epochs 25
+
+# 2. Predict and infer new signals in real-time using the saved model
+dotnet run --project src/Kairos103.Cli -- predict --model model.kairos --data datasets/synthetic/warpstress_test_1.0x.csv --output predictions.csv
+
+# 3. Detailed evaluation with Confusion Matrix and Latency
+dotnet run --project src/Kairos103.Cli -- evaluate --model model.kairos --data datasets/synthetic/warpstress_test_2.0x.csv --export-json metrics.json
+
+# === BENCHMARKS & COMPETITIVE LEADERBOARDS ===
+
+# 4. Generate official submission package for leaderboards (Papers With Code / TinyML)
+dotnet run --project src/Kairos103.Cli -- online-bench --output results
+
+# 5. Run comparative benchmark against Transformer and LSTM
 dotnet run --project src/Kairos103.Cli -- benchmark --fast
 
-# 2. Run full benchmark across all datasets and scale factors
-dotnet run --project src/Kairos103.Cli -- benchmark --warp-factors 0.5,0.8,1.0,1.2,2.0 --dataset synthetic
-
-# 3. Run temporal jitter tolerance sweep
+# 6. Run temporal jitter tolerance sweep
 dotnet run --project src/Kairos103.Cli -- jitter-sweep --max-jitter-ms 50 --step 10
-
-# 4. Export technical report and vector plots (Markdown + SVG to ./results)
-dotnet run --project src/Kairos103.Cli -- export-plots --output ./results/
 ```
 
 ---

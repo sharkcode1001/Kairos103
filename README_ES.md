@@ -174,20 +174,27 @@ Kairos103/
 La aplicación de consola ofrece comandos directos para reproducibilidad en terminal:
 
 ```bash
-# 1. Ejecutar benchmark comparativo rápido (Kairos103 vs Transformer vs LSTM)
+# === FLUJO DE CAJA NEGRA (ENTRENAMIENTO, INFERENCIA Y EVALUACIÓN) ===
+
+# 1. Entrenar tu propio modelo desde un archivo CSV y guardarlo a disco
+dotnet run --project src/Kairos103.Cli -- train --data datasets/synthetic/warpstress_train.csv --output model.kairos --epochs 25
+
+# 2. Predecir e inferir nuevas señales en tiempo real con el modelo guardado
+dotnet run --project src/Kairos103.Cli -- predict --model model.kairos --data datasets/synthetic/warpstress_test_1.0x.csv --output predicciones.csv
+
+# 3. Evaluación detallada con Matriz de Confusión y Latencia
+dotnet run --project src/Kairos103.Cli -- evaluate --model model.kairos --data datasets/synthetic/warpstress_test_2.0x.csv --export-json metricas.json
+
+# === BENCHMARKS Y COMPETICIÓN EN LÍNEA ===
+
+# 4. Generar reporte oficial para submissions en Leaderboards (Papers With Code / TinyML)
+dotnet run --project src/Kairos103.Cli -- online-bench --output results
+
+# 5. Ejecutar benchmark comparativo rápido frente a Transformer y LSTM
 dotnet run --project src/Kairos103.Cli -- benchmark --fast
 
-# 2. Ejecutar benchmark completo sobre todos los datos y factores
-dotnet run --project src/Kairos103.Cli -- benchmark --warp-factors 0.5,0.8,1.0,1.2,2.0 --dataset synthetic
-
-# 3. Ejecutar prueba de tolerancia a Jitter temporal
+# 6. Barrido de tolerancia a Jitter temporal
 dotnet run --project src/Kairos103.Cli -- jitter-sweep --max-jitter-ms 50 --step 10
-
-# 4. Exportar reporte técnico y figuras vectoriales (Markdown + SVG en ./results)
-dotnet run --project src/Kairos103.Cli -- export-plots --output ./results/
-
-# 5. Cambiar idioma de los mensajes de consola (en / es)
-dotnet run --project src/Kairos103.Cli -- benchmark --fast --lang es
 ```
 
 ---

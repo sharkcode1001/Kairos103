@@ -1,14 +1,66 @@
+using System.Globalization;
+using System.Text.Json;
+
 namespace Kairos103.Cli.Localization;
 
 /// <summary>
 /// Provides internationalization support for CLI console messages.
-/// Default language is English ("en"), with full support for Spanish ("es").
+/// Supports English ("en") and Spanish ("es"), with persistent configuration
+/// and automatic OS culture detection.
 /// </summary>
 public static class CliStrings
 {
-    public static string CurrentLanguage { get; set; } = "en";
+    private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "kairos_config.json");
 
-    public static bool IsSpanish => CurrentLanguage.Equals("es", StringComparison.OrdinalIgnoreCase);
+    private static string _currentLanguage = "en";
+
+    static CliStrings()
+    {
+        // 1. Try reading saved preference
+        if (File.Exists(ConfigPath))
+        {
+            try
+            {
+                string json = File.ReadAllText(ConfigPath);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("Language", out var langProp))
+                {
+                    _currentLanguage = langProp.GetString() ?? "en";
+                    return;
+                }
+            }
+            catch
+            {
+                // Fallback to culture detection
+            }
+        }
+
+        // 2. Auto-detect from system culture
+        string systemLang = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
+        _currentLanguage = systemLang == "es" ? "es" : "en";
+    }
+
+    public static string CurrentLanguage
+    {
+        get => _currentLanguage;
+        set => _currentLanguage = value.ToLowerInvariant() == "es" ? "es" : "en";
+    }
+
+    public static bool IsSpanish => _currentLanguage.Equals("es", StringComparison.OrdinalIgnoreCase);
+
+    public static void SaveLanguagePreference(string lang)
+    {
+        CurrentLanguage = lang;
+        try
+        {
+            var config = new { Language = CurrentLanguage };
+            File.WriteAllText(ConfigPath, JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch
+        {
+            // Silently ignore if write protected
+        }
+    }
 
     public static string BannerTitle =>
         IsSpanish
@@ -142,11 +194,27 @@ public static class CliStrings
     public static string AvailableUsage =>
         IsSpanish
             ? "Uso disponible:\n" +
-              "  dotnet run --project src/Kairos103.Cli -- benchmark [--dataset synthetic|ecg] [--warp-factors 0.5,0.8,1.0,1.2,2.0] [--runs 1] [--fast] [--lang en|es]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10] [--lang en|es]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full] [--lang en|es]"
+              "  -- Configuración de Idioma --\n" +
+              "  dotnet run --project src/Kairos103.Cli -- --lang es|en [comando]\n\n" +
+              "  -- Comandos de Caja Negra --\n" +
+              "  dotnet run --project src/Kairos103.Cli -- train --data <archivo.csv> --output <modelo.kairos> [--subregions 16] [--epochs 25] [--lr 0.05]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- predict --model <modelo.kairos> --data <prueba.csv> [--output <predicciones.csv>]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- evaluate --model <modelo.kairos> --data <prueba.csv> [--export-json <metricas.json>]\n\n" +
+              "  -- Benchmarks y Competencia --\n" +
+              "  dotnet run --project src/Kairos103.Cli -- benchmark [--dataset synthetic|ecg] [--warp-factors 0.5,0.8,1.0,1.2,2.0] [--runs 1] [--fast]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- online-bench [--datasets-dir datasets] [--output results]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]"
             : "Available usage:\n" +
-              "  dotnet run --project src/Kairos103.Cli -- benchmark [--dataset synthetic|ecg] [--warp-factors 0.5,0.8,1.0,1.2,2.0] [--runs 1] [--fast] [--lang en|es]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10] [--lang en|es]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full] [--lang en|es]";
+              "  -- Language Configuration --\n" +
+              "  dotnet run --project src/Kairos103.Cli -- --lang es|en [command]\n\n" +
+              "  -- Black-Box Workflow --\n" +
+              "  dotnet run --project src/Kairos103.Cli -- train --data <file.csv> --output <model.kairos> [--subregions 16] [--epochs 25] [--lr 0.05]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- predict --model <model.kairos> --data <test.csv> [--output <preds.csv>]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- evaluate --model <model.kairos> --data <test.csv> [--export-json <metrics.json>]\n\n" +
+              "  -- Benchmarking & Competition --\n" +
+              "  dotnet run --project src/Kairos103.Cli -- benchmark [--dataset synthetic|ecg] [--warp-factors 0.5,0.8,1.0,1.2,2.0] [--runs 1] [--fast]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- online-bench [--datasets-dir datasets] [--output results]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]";
 }

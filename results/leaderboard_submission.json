@@ -1,0 +1,27 @@
+{
+  "ModelName": "Kairos103",
+  "Architecture": "Clockless Rank-Order Neural Network",
+  "Paradigm": "Event-Driven / Combinatorial B103 (Lehmer Permutations)",
+  "Platform": ".NET 10 (Native AOT Compatible)",
+  "HardwareTarget": "Microcontrollers / Edge AI / ARM Cortex-M / Ultra-Low Power RISC-V",
+  "Metrics": {
+    "OperationsType": "Accumulation-Only Readout (0 Dense Multiplications)",
+    "EnergyEfficiencyVsDenseTransformer": "27.8x reduction in total operations",
+    "WarpStressAccuracy": {
+      "0.5x": 0.99,
+      "0.8x": 0.98875,
+      "1.0x": 0.9875,
+      "1.2x": 0.98375,
+      "2.0x": 0.91625
+    },
+    "EcgArrhythmiaAccuracy": {
+      "0.5x": 1,
+      "0.8x": 0.9975,
+      "1.0x": 1,
+      "1.2x": 1,
+      "2.0x": 1
+    },
+    "WorstCaseDegradationUnderWarp": "0.00% on MIT-BIH (100% strict invariance)"
+  },
+  "GeneratedAt": "2026-10-12T18:04:57.2620142Z"
+}

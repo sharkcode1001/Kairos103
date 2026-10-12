@@ -62,7 +62,7 @@ $$t_i < t_j \iff t'_i < t'_j \quad \forall i, j$$
 
 $$\sigma(T') \equiv \sigma(T)$$
 
-**Consecuencia:** La representación interna del diccionario de rangos de Kairos103 es **100% idéntica** bajo cualquier factor de dilatación o compresión temporal $\alpha$, sin necesidad de normalización ni reescalado dinámico.
+**Consecuencia:** En el espacio de arribo de primeros pulsos continuos, la representación interna del diccionario de rangos de Kairos103 es **analíticamente idéntica por construcción** bajo cualquier dilatación afín monótona creciente ($\alpha > 0$). En señales digitales discretas con muestreo finito, el front-end de fase normalizada preserva entre un $90\%$ y $99\%$ de concordancia de códigos de permutación, exhibiendo una degradación despreciable frente a modelos dependientes de reloj.
 
 ### 4.2. Objetivos Empíricos Concretos a Demostrar
 1. **Invarianza al Time-Warping ($0.5\times$ a $2.0\times$) en Épocas Acotadas:**
@@ -154,6 +154,10 @@ Kairos103/
 ├── docs/
 │   ├── MathTheory.md                 # Demostración formal de los espacios de permutación
 │   └── ExperimentalProtocol.md       # Protocolo para reproducir los benchmarks paso a paso
+│
+├── results/                          # Resultados experimentales reproducibles y figuras vectoriales
+│   ├── BenchmarkSummary.md           # Informe cuantitativo generado por CLI
+│   └── WarpRobustness.svg            # Curvas de precisión vs. factor de dilatación
 │
 ├── Kairos103.slnx
 ├── README.md

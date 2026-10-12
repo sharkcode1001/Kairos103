@@ -109,7 +109,10 @@ Todos los modelos fueron entrenados **exclusivamente a velocidad nominal ($1.0\t
 | **1.2x** | 20% más rápida | **98.00%** | 34.50% | 40.00% |
 | **2.0x** | Doble rapidez | **90.00%** | 24.50% | 43.50% |
 
-* **Observación:** Mientras que el Mini-Transformer y la LSTM se degradan hasta el nivel de azar (~25%-30%), Kairos103 mantiene una precisión prácticamente plana ($\ge 98\%$) en casi todo el rango operativo.
+> [!NOTE]
+> **Resolución Estadística y Reproducibilidad:** Los conjuntos de prueba evaluados constan de $N = 200$ muestras independientes por factor. Por ello, la resolución empírica es discreta en pasos de $\frac{1}{200} = 0.50\%$ (ej. $198/200 = 99.00\%$, $197/200 = 98.50\%$, $180/200 = 90.00\%$). Todas las mediciones son reproducibles mediante `dotnet run --project src/Kairos103.Cli -- benchmark --fast` y se encuentran respaldadas con sus gráficos vectoriales en el directorio `results/`.
+
+* **Observación:** Mientras que el Mini-Transformer y la LSTM se degradan hasta el nivel de azar (~25%-30%), Kairos103 mantiene una precisión prácticamente plana ($\ge 98\%$) en casi todo el rango operativo. La pequeña inflexión a $2.0\times$ ($90.00\%$) se debe a efectos de interpolación discreta cercanos al límite de Nyquist al reducir la señal a la mitad de muestras.
 
 ### B. Dataset Biomédico Real: Detección de Arritmias en ECG (MIT-BIH)
 

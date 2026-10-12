@@ -109,7 +109,10 @@ All models were trained **strictly on nominal speed ($1.0\times$)**, with zero t
 | **1.2x** | 20% faster | **98.00%** | 34.50% | 40.00% |
 | **2.0x** | Double speed ($0.5\times$ length) | **90.00%** | 24.50% | 43.50% |
 
-* **Finding:** While the Mini-Transformer and LSTM degrade toward random chance (~25%–40%), Kairos103 maintains flat, robust accuracy ($\ge 98\%$) across almost the entire spectrum.
+> [!NOTE]
+> **Statistical Resolution & Reproducibility:** Test suites consist of $N = 200$ independent signal epochs per warp factor. Consequently, empirical accuracy follows a discrete resolution of $\frac{1}{200} = 0.50\%$ (e.g., $198/200 = 99.00\%$, $197/200 = 98.50\%$, $180/200 = 90.00\%$). All results are reproducible via `dotnet run --project src/Kairos103.Cli -- benchmark --fast` and backed by standalone reports and SVG figures in the `./results/` directory.
+
+* **Finding:** While the Mini-Transformer and LSTM degrade toward random chance (~25%–40%), Kairos103 maintains flat, robust accuracy ($\ge 98\%$) across almost the entire spectrum. The slight dip at $2.0\times$ ($90.00\%$) reflects discrete sampling effects near the Nyquist frequency as sequence length is halved.
 
 ### B. Real Biomedical Benchmark: Arrhythmia Detection in ECG (MIT-BIH)
 

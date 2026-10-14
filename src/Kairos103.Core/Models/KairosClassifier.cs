@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Kairos103.Core.Data;
+using Kairos103.Core.Evaluation;
 
 namespace Kairos103.Core.Models;
 
@@ -62,19 +63,20 @@ public sealed class KairosClassifier
     }
 
     /// <summary>
-    /// Fits the model on a pre-loaded list of SignalSample objects.
+    /// <summary>
+    /// Fits the model on a pre-loaded list of SignalSample objects with optional class weighting.
     /// </summary>
     public void Fit(
         IReadOnlyList<SignalSample> samples,
         int epochs = 25,
         double lr = 0.05,
         int hiddenDim = 32,
-        Action<int, int>? onProgress = null)
+        Action<int, int>? onProgress = null,
+        double[]? classWeights = null)
     {
         if (samples == null || samples.Count == 0)
             throw new ArgumentException("Dataset cannot be null or empty.", nameof(samples));
 
-        // Auto-detect classes (find max label + 1 or count unique labels)
         int maxLabel = samples.Max(s => s.Label);
         int uniqueLabels = samples.Select(s => s.Label).Distinct().Count();
         ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
@@ -88,8 +90,92 @@ public sealed class KairosClassifier
         int totalInputDim = _network.TotalFeatures + auxCount;
         _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
 
-        // Pre-encode all signals through the Kairos asynchronous front-end
-        var encodedTrain = new List<(double[] Features, int Label)>(samples.Count);
+        var encodedTrain = EncodeSamples(samples, auxCount, totalInputDim);
+        _trainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, classWeights: classWeights);
+        IsTrained = true;
+    }
+
+    /// <summary>
+    /// Fits the model while evaluating validation Macro F1 at each epoch, automatically checkpointing the best weights.
+    /// </summary>
+    public MacroF1Result FitWithValidation(
+        IReadOnlyList<SignalSample> trainSamples,
+        IReadOnlyList<SignalSample> valSamples,
+        int epochs = 30,
+        double lr = 0.02,
+        int hiddenDim = 32,
+        double[]? classWeights = null,
+        Action<int, int, double, double>? onEpochCompleted = null)
+    {
+        if (trainSamples == null || trainSamples.Count == 0)
+            throw new ArgumentException("Train samples cannot be empty.", nameof(trainSamples));
+        if (valSamples == null || valSamples.Count == 0)
+            throw new ArgumentException("Validation samples cannot be empty.", nameof(valSamples));
+
+        int maxLabel = Math.Max(trainSamples.Max(s => s.Label), valSamples.Max(s => s.Label));
+        int uniqueLabels = trainSamples.Select(s => s.Label).Union(valSamples.Select(s => s.Label)).Distinct().Count();
+        ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
+
+        int auxCount = 0;
+        if (trainSamples.Count > 0 && trainSamples[0].Values.Length > trainSamples[0].EffectiveLength && trainSamples[0].EffectiveLength > 0)
+        {
+            auxCount = trainSamples[0].Values.Length - trainSamples[0].EffectiveLength;
+        }
+
+        int totalInputDim = _network.TotalFeatures + auxCount;
+        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+
+        var encodedTrain = EncodeSamples(trainSamples, auxCount, totalInputDim);
+        var encodedVal = EncodeSamples(valSamples, auxCount, totalInputDim);
+
+        var valActuals = valSamples.Select(s => s.Label).ToArray();
+        var valPreds = new int[valSamples.Count];
+
+        PairwiseTrainer? bestTrainer = null;
+        double bestMacroF1 = -1.0;
+        MacroF1Result? bestResult = null;
+
+        for (int ep = 0; ep < epochs; ep++)
+        {
+            _trainer.TrainEpoch(encodedTrain, lr: lr, classWeights: classWeights);
+
+            // Predict on validation set
+            int correctVal = 0;
+            for (int i = 0; i < encodedVal.Count; i++)
+            {
+                int p = _trainer.Predict(encodedVal[i].Features).Prediction;
+                valPreds[i] = p;
+                if (p == valActuals[i]) correctVal++;
+            }
+
+            double valAcc = (double)correctVal / encodedVal.Count;
+            var currentMetrics = MacroF1Metrics.Compute(valActuals, valPreds, ClassCount);
+
+            if (currentMetrics.MacroF1 > bestMacroF1)
+            {
+                bestMacroF1 = currentMetrics.MacroF1;
+                bestTrainer = _trainer.Clone();
+                bestResult = currentMetrics;
+            }
+
+            onEpochCompleted?.Invoke(ep + 1, epochs, valAcc, currentMetrics.MacroF1);
+        }
+
+        if (bestTrainer != null)
+        {
+            _trainer = bestTrainer;
+        }
+
+        IsTrained = true;
+        return bestResult ?? MacroF1Metrics.Compute(valActuals, valPreds, ClassCount);
+    }
+
+    private List<(double[] Features, int Label)> EncodeSamples(
+        IReadOnlyList<SignalSample> samples,
+        int auxCount,
+        int totalInputDim)
+    {
+        var encoded = new List<(double[] Features, int Label)>(samples.Count);
         for (int i = 0; i < samples.Count; i++)
         {
             var s = samples[i];
@@ -104,16 +190,14 @@ public sealed class KairosClassifier
                 {
                     combined[_network.TotalFeatures + a] = s.Values[eff + a];
                 }
-                encodedTrain.Add((combined, s.Label));
+                encoded.Add((combined, s.Label));
             }
             else
             {
-                encodedTrain.Add((feats, s.Label));
+                encoded.Add((feats, s.Label));
             }
         }
-
-        _trainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress);
-        IsTrained = true;
+        return encoded;
     }
 
     /// <summary>

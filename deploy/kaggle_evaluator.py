@@ -173,6 +173,21 @@ def build_submission(ids, raw_output_csv, final_submission_csv, id_col="id", lab
     if len(ids) != len(predictions):
         raise ValueError(f"ID count ({len(ids)}) does not match prediction count ({len(predictions)})")
 
+    # Check for duplicate IDs
+    seen_ids = set()
+    dup_count = 0
+    for sample_id in ids:
+        if sample_id in seen_ids:
+            dup_count += 1
+        seen_ids.add(sample_id)
+    if dup_count > 0:
+        print(f"[!] Warning: {dup_count} duplicate IDs detected in test set.")
+
+    # Class distribution tally
+    tally = {}
+    for p in predictions:
+        tally[p] = tally.get(p, 0) + 1
+
     with open(final_submission_csv, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([id_col, label_col])
@@ -181,6 +196,7 @@ def build_submission(ids, raw_output_csv, final_submission_csv, id_col="id", lab
 
     print(f"[+] Successfully generated submission artifact: {final_submission_csv}")
     print(f"    Total entries: {len(predictions)}")
+    print(f"    Prediction distribution: {dict(sorted(tally.items()))}")
 
 
 def main():

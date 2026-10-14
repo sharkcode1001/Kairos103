@@ -204,7 +204,11 @@ public static class CliStrings
               "  dotnet run --project src/Kairos103.Cli -- benchmark [--dataset synthetic|ecg] [--warp-factors 0.5,0.8,1.0,1.2,2.0] [--runs 1] [--fast]\n" +
               "  dotnet run --project src/Kairos103.Cli -- online-bench [--datasets-dir datasets] [--output results]\n" +
               "  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]"
+              "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]\n\n" +
+              "  -- Kaggle ECG Competition (Macro F1) --\n" +
+              "  dotnet run --project src/Kairos103.Cli -- train-ecg --train <train.csv> --model <model.kairos> [--epochs 35] [--val-split 0.2]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- validate-ecg --model <model.kairos> --train <train.csv> [--val-split 0.2]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv>"
             : "Available usage:\n" +
               "  -- Language Configuration --\n" +
               "  dotnet run --project src/Kairos103.Cli -- --lang es|en [command]\n\n" +
@@ -216,5 +220,9 @@ public static class CliStrings
               "  dotnet run --project src/Kairos103.Cli -- benchmark [--dataset synthetic|ecg] [--warp-factors 0.5,0.8,1.0,1.2,2.0] [--runs 1] [--fast]\n" +
               "  dotnet run --project src/Kairos103.Cli -- online-bench [--datasets-dir datasets] [--output results]\n" +
               "  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]";
+              "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]\n\n" +
+              "  -- Kaggle ECG Competition (Macro F1) --\n" +
+              "  dotnet run --project src/Kairos103.Cli -- train-ecg --train <train.csv> --model <model.kairos> [--epochs 35] [--val-split 0.2]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- validate-ecg --model <model.kairos> --train <train.csv> [--val-split 0.2]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv>";
 }

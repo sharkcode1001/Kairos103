@@ -432,6 +432,111 @@ switch (command)
         break;
     }
 
+    case "train-ecg":
+    {
+        string trainPath = "";
+        string modelPath = "results/model_ecg.kairos";
+        int epochs = 35;
+        double lr = 0.02;
+        int hidden = 48;
+        int subregions = 32;
+        double valSplit = 0.2;
+        int seed = 42;
+        bool classWeights = true;
+        bool baselines = true;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            if ((args[i] == "--train" || args[i] == "--data") && i + 1 < args.Length)
+                trainPath = args[++i];
+            else if ((args[i] == "--model" || args[i] == "--output") && i + 1 < args.Length)
+                modelPath = args[++i];
+            else if (args[i] == "--epochs" && i + 1 < args.Length)
+                epochs = int.Parse(args[++i]);
+            else if (args[i] == "--lr" && i + 1 < args.Length)
+                lr = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+            else if (args[i] == "--hidden" && i + 1 < args.Length)
+                hidden = int.Parse(args[++i]);
+            else if (args[i] == "--subregions" && i + 1 < args.Length)
+                subregions = int.Parse(args[++i]);
+            else if (args[i] == "--val-split" && i + 1 < args.Length)
+                valSplit = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+            else if (args[i] == "--seed" && i + 1 < args.Length)
+                seed = int.Parse(args[++i]);
+            else if (args[i] == "--no-class-weights")
+                classWeights = false;
+            else if (args[i] == "--no-baselines")
+                baselines = false;
+        }
+
+        if (string.IsNullOrEmpty(trainPath))
+        {
+            Console.WriteLine("[ERROR] Must specify training CSV with --train <train.csv>");
+            break;
+        }
+
+        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines);
+        break;
+    }
+
+    case "validate-ecg":
+    {
+        string modelPath = "";
+        string trainPath = "";
+        double valSplit = 0.2;
+        int seed = 42;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--model" && i + 1 < args.Length)
+                modelPath = args[++i];
+            else if ((args[i] == "--train" || args[i] == "--data") && i + 1 < args.Length)
+                trainPath = args[++i];
+            else if (args[i] == "--val-split" && i + 1 < args.Length)
+                valSplit = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+            else if (args[i] == "--seed" && i + 1 < args.Length)
+                seed = int.Parse(args[++i]);
+        }
+
+        if (string.IsNullOrEmpty(modelPath) || string.IsNullOrEmpty(trainPath))
+        {
+            Console.WriteLine("[ERROR] Must specify --model <model_ecg.kairos> and --train <train.csv>");
+            break;
+        }
+
+        ValidateEcgCommand.Execute(modelPath, trainPath, valSplit, seed);
+        break;
+    }
+
+    case "predict-kaggle":
+    {
+        string modelPath = "";
+        string testPath = "";
+        string sampleSubPath = "";
+        string outputPath = "submission.csv";
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--model" && i + 1 < args.Length)
+                modelPath = args[++i];
+            else if ((args[i] == "--test" || args[i] == "--data") && i + 1 < args.Length)
+                testPath = args[++i];
+            else if ((args[i] == "--sample-submission" || args[i] == "--sample") && i + 1 < args.Length)
+                sampleSubPath = args[++i];
+            else if ((args[i] == "--output" || args[i] == "-o") && i + 1 < args.Length)
+                outputPath = args[++i];
+        }
+
+        if (string.IsNullOrEmpty(modelPath) || string.IsNullOrEmpty(testPath))
+        {
+            Console.WriteLine("[ERROR] Must specify --model <model.kairos> and --test <test.csv>");
+            break;
+        }
+
+        PredictKaggleCommand.Execute(modelPath, testPath, outputPath, sampleSubPath);
+        break;
+    }
+
     default:
     {
         Console.WriteLine(CliStrings.UnknownCommand(command));

@@ -95,21 +95,63 @@ public sealed class PairwiseTrainer
     /// <summary>
     /// Trains the classifier using Adam optimization with Cross-Entropy loss over sparse rank features.
     /// </summary>
-    public void Train(IReadOnlyList<(double[] Features, int Label)> dataset, int epochs = 20, double lr = 0.01, Action<int, int>? onProgress = null)
+    public void Train(
+        IReadOnlyList<(double[] Features, int Label)> dataset,
+        int epochs = 20,
+        double lr = 0.01,
+        Action<int, int>? onProgress = null,
+        double[]? classWeights = null)
     {
         if (dataset == null || dataset.Count == 0) return;
 
         if (HiddenDim > 0)
         {
-            TrainMlp(dataset, epochs, lr, onProgress);
+            TrainMlp(dataset, epochs, lr, onProgress, classWeights);
         }
         else
         {
-            TrainLinear(dataset, epochs, lr, onProgress);
+            TrainLinear(dataset, epochs, lr, onProgress, classWeights);
         }
     }
 
-    private void TrainMlp(IReadOnlyList<(double[] Features, int Label)> dataset, int epochs, double lr, Action<int, int>? onProgress)
+    /// <summary>
+    /// Trains a single epoch over the dataset with Adam optimization and optional class weighting.
+    /// </summary>
+    public void TrainEpoch(
+        IReadOnlyList<(double[] Features, int Label)> dataset,
+        double lr = 0.01,
+        double[]? classWeights = null)
+    {
+        if (dataset == null || dataset.Count == 0) return;
+
+        if (HiddenDim > 0)
+        {
+            TrainEpochMlp(dataset, lr, classWeights);
+        }
+        else
+        {
+            TrainEpochLinear(dataset, lr, classWeights);
+        }
+    }
+
+    private void TrainMlp(
+        IReadOnlyList<(double[] Features, int Label)> dataset,
+        int epochs,
+        double lr,
+        Action<int, int>? onProgress,
+        double[]? classWeights)
+    {
+        for (int ep = 0; ep < epochs; ep++)
+        {
+            onProgress?.Invoke(ep + 1, epochs);
+            TrainEpochMlp(dataset, lr, classWeights);
+        }
+    }
+
+    private void TrainEpochMlp(
+        IReadOnlyList<(double[] Features, int Label)> dataset,
+        double lr,
+        double[]? classWeights)
     {
         double beta1 = 0.9, beta2 = 0.999, eps = 1e-8;
         double[] h = new double[HiddenDim];
@@ -120,12 +162,8 @@ public sealed class PairwiseTrainer
 
         List<int> activeFeatures = new List<int>(64);
 
-        for (int ep = 0; ep < epochs; ep++)
+        foreach (var (features, label) in dataset)
         {
-            onProgress?.Invoke(ep + 1, epochs);
-
-            foreach (var (features, label) in dataset)
-            {
                 // Gather sparse active feature indices
                 activeFeatures.Clear();
                 for (int f = 0; f < FeatureDim; f++)
@@ -167,10 +205,12 @@ public sealed class PairwiseTrainer
                     sumExp += exp;
                 }
                 double invSum = 1.0 / Math.Max(1e-12, sumExp);
+                double sampleWeight = (classWeights != null && label >= 0 && label < classWeights.Length) ? classWeights[label] : 1.0;
                 for (int c = 0; c < ClassCount; c++)
                 {
                     probs[c] *= invSum;
-                    grad2[c] = probs[c] - (c == label ? 1.0 : 0.0);
+                    double target = (c == label ? 1.0 : 0.0);
+                    grad2[c] = sampleWeight * (probs[c] - target);
                 }
 
                 // Backprop to hidden layer
@@ -226,53 +266,95 @@ public sealed class PairwiseTrainer
                 }
             }
         }
-    }
 
-    private void TrainLinear(IReadOnlyList<(double[] Features, int Label)> dataset, int epochs, double lr, Action<int, int>? onProgress)
+    private void TrainLinear(
+        IReadOnlyList<(double[] Features, int Label)> dataset,
+        int epochs,
+        double lr,
+        Action<int, int>? onProgress,
+        double[]? classWeights)
     {
-        double[] scores = new double[ClassCount];
-
         for (int ep = 0; ep < epochs; ep++)
         {
             onProgress?.Invoke(ep + 1, epochs);
-            foreach (var (features, label) in dataset)
+            TrainEpochLinear(dataset, lr, classWeights);
+        }
+    }
+
+    private void TrainEpochLinear(
+        IReadOnlyList<(double[] Features, int Label)> dataset,
+        double lr,
+        double[]? classWeights)
+    {
+        double[] scores = new double[ClassCount];
+
+        foreach (var (features, label) in dataset)
+        {
+            double sampleWeight = (classWeights != null && label >= 0 && label < classWeights.Length) ? classWeights[label] : 1.0;
+            for (int c = 0; c < ClassCount; c++)
             {
-                for (int c = 0; c < ClassCount; c++)
+                double s = Bias[c];
+                for (int f = 0; f < FeatureDim; f++)
                 {
-                    double s = Bias[c];
-                    for (int f = 0; f < FeatureDim; f++)
-                    {
-                        if (features[f] > 0.0) s += Weights[c][f] * features[f];
-                    }
-                    scores[c] = s;
+                    if (features[f] > 0.0) s += Weights[c][f] * features[f];
                 }
+                scores[c] = s;
+            }
 
-                int predicted = 0;
-                double maxScore = scores[0];
-                for (int c = 1; c < ClassCount; c++)
+            int predicted = 0;
+            double maxScore = scores[0];
+            for (int c = 1; c < ClassCount; c++)
+            {
+                if (scores[c] > maxScore)
                 {
-                    if (scores[c] > maxScore)
-                    {
-                        maxScore = scores[c];
-                        predicted = c;
-                    }
+                    maxScore = scores[c];
+                    predicted = c;
                 }
+            }
 
-                if (predicted != label)
+            if (predicted != label)
+            {
+                Bias[label] += sampleWeight * lr;
+                Bias[predicted] -= sampleWeight * lr;
+                for (int f = 0; f < FeatureDim; f++)
                 {
-                    Bias[label] += lr;
-                    Bias[predicted] -= lr;
-                    for (int f = 0; f < FeatureDim; f++)
+                    if (features[f] > 0.0)
                     {
-                        if (features[f] > 0.0)
-                        {
-                            Weights[label][f] += lr * features[f];
-                            Weights[predicted][f] -= lr * features[f];
-                        }
+                        Weights[label][f] += sampleWeight * lr * features[f];
+                        Weights[predicted][f] -= sampleWeight * lr * features[f];
                     }
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Creates a deep copy of the trainer weights and biases.
+    /// </summary>
+    public PairwiseTrainer Clone()
+    {
+        var clone = new PairwiseTrainer(ClassCount, FeatureDim, HiddenDim);
+        Array.Copy(Bias, clone.Bias, Bias.Length);
+        for (int c = 0; c < ClassCount; c++)
+        {
+            Array.Copy(Weights[c], clone.Weights[c], FeatureDim);
+        }
+
+        if (HiddenDim > 0)
+        {
+            Array.Copy(B1, clone.B1, B1.Length);
+            Array.Copy(B2, clone.B2, B2.Length);
+            for (int j = 0; j < HiddenDim; j++)
+            {
+                Array.Copy(W1[j], clone.W1[j], FeatureDim);
+            }
+            for (int c = 0; c < ClassCount; c++)
+            {
+                Array.Copy(W2[c], clone.W2[c], HiddenDim);
+            }
+        }
+
+        return clone;
     }
 
     /// <summary>

@@ -25,7 +25,7 @@ jobs:
       run: dotnet build Kairos103.slnx --no-restore --configuration Release
 
     - name: Test
-      run: dotnet test Kairos103.slnx --no-build --configuration Release --verbosity normal
+      run: dotnet test tests/Kairos103.Tests/Kairos103.Tests.csproj --no-build --configuration Release --verbosity normal
 
     - name: Run Fast Benchmark
       run: dotnet run --project src/Kairos103.Cli --configuration Release -- benchmark --fast

@@ -61,7 +61,7 @@ def resolve_cli_command(custom_cli=None):
     )
 
 
-def prepare_kaggle_input(input_csv, temp_csv):
+def prepare_kaggle_input(input_csv, temp_csv, signal_length=None):
     """
     Standardizes CSV data for Kairos103 ingestion.
     Supports standard Kaggle format (rows of time-series values with/without header and Id).
@@ -111,7 +111,15 @@ def prepare_kaggle_input(input_csv, temp_csv):
             row_values.append(s if s and s.lower() not in ("nan", "null", "none") else "0.0")
 
         seq_len = len(row_values)
-        print(f"[*] Detected sequence length: {seq_len} features per sample.")
+        if signal_length is not None:
+            eff_len = signal_length
+        elif has_header:
+            sig_cols_count = sum(1 for idx, h in enumerate(header_lower) if idx != id_col_idx and h.startswith("sig_"))
+            eff_len = sig_cols_count if sig_cols_count > 0 else seq_len
+        else:
+            eff_len = seq_len
+
+        print(f"[*] Waveform length: {eff_len} points, Total features: {seq_len} (Auxiliary: {seq_len - eff_len})")
 
         # Write explicit header row to avoid parser misinterpretation
         header_cols = ["label", "length"] + [f"v{i}" for i in range(seq_len)]
@@ -120,7 +128,7 @@ def prepare_kaggle_input(input_csv, temp_csv):
         # Process first row
         sample_id = first_data_row[id_col_idx] if id_col_idx is not None else str(rows_written)
         ids.append(sample_id)
-        writer.writerow([0, seq_len] + row_values)
+        writer.writerow([0, eff_len] + row_values)
         rows_written += 1
 
         # Process remaining rows
@@ -133,7 +141,7 @@ def prepare_kaggle_input(input_csv, temp_csv):
             vals = [_c(val) for idx, val in enumerate(row) if idx != id_col_idx]
             sample_id = row[id_col_idx] if id_col_idx is not None else str(rows_written)
             ids.append(sample_id)
-            writer.writerow([0, seq_len] + vals)
+            writer.writerow([0, eff_len] + vals)
             rows_written += 1
 
     print(f"[*] Prepared {rows_written} samples for inference.")
@@ -183,6 +191,7 @@ def main():
     parser.add_argument("--output", default="submission.csv", help="Output submission CSV path")
     parser.add_argument("--id-col", default="id", help="Header name for sample ID column (default: id)")
     parser.add_argument("--label-col", default="label", help="Header name for prediction label column (default: label)")
+    parser.add_argument("--signal-length", type=int, default=None, help="Explicit length of continuous waveform before auxiliary features")
     args = parser.parse_args()
 
     cli_cmd_parts = resolve_cli_command(args.cli)
@@ -190,7 +199,7 @@ def main():
     temp_output = os.path.abspath("_temp_kairos_raw_preds.csv")
 
     try:
-        ids = prepare_kaggle_input(args.test, temp_input)
+        ids = prepare_kaggle_input(args.test, temp_input, signal_length=args.signal_length)
         run_inference(cli_cmd_parts, args.model, temp_input, temp_output)
         build_submission(ids, temp_output, args.output, id_col=args.id_col, label_col=args.label_col)
     finally:

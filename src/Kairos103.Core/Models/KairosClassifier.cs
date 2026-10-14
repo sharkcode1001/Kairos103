@@ -79,7 +79,14 @@ public sealed class KairosClassifier
         int uniqueLabels = samples.Select(s => s.Label).Distinct().Count();
         ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
 
-        _trainer = new PairwiseTrainer(ClassCount, _network.TotalFeatures, hiddenDim: hiddenDim, seed: Seed);
+        int auxCount = 0;
+        if (samples.Count > 0 && samples[0].Values.Length > samples[0].EffectiveLength && samples[0].EffectiveLength > 0)
+        {
+            auxCount = samples[0].Values.Length - samples[0].EffectiveLength;
+        }
+
+        int totalInputDim = _network.TotalFeatures + auxCount;
+        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
 
         // Pre-encode all signals through the Kairos asynchronous front-end
         var encodedTrain = new List<(double[] Features, int Label)>(samples.Count);
@@ -87,7 +94,22 @@ public sealed class KairosClassifier
         {
             var s = samples[i];
             var (feats, _) = _network.Forward(s.Values, s.EffectiveLength);
-            encodedTrain.Add((feats, s.Label));
+
+            if (auxCount > 0)
+            {
+                double[] combined = new double[totalInputDim];
+                Array.Copy(feats, combined, _network.TotalFeatures);
+                int eff = s.EffectiveLength;
+                for (int a = 0; a < auxCount; a++)
+                {
+                    combined[_network.TotalFeatures + a] = s.Values[eff + a];
+                }
+                encodedTrain.Add((combined, s.Label));
+            }
+            else
+            {
+                encodedTrain.Add((feats, s.Label));
+            }
         }
 
         _trainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress);
@@ -132,14 +154,11 @@ public sealed class KairosClassifier
     }
 
     /// <summary>
-    /// Predicts the class of a continuous 1D signal.
+    /// Predicts the class of a continuous 1D signal with optional auxiliary features.
     /// </summary>
     public int Predict(ReadOnlySpan<double> signal, int effectiveLength = -1)
     {
-        EnsureTrained();
-        int len = effectiveLength > 0 ? effectiveLength : signal.Length;
-        var (feats, _) = _network.Forward(signal, len);
-        var (pred, _) = _trainer!.Predict(feats);
+        var (pred, _, _, _, _) = PredictDetailed(signal, effectiveLength);
         return pred;
     }
 
@@ -153,8 +172,21 @@ public sealed class KairosClassifier
         EnsureTrained();
         int len = effectiveLength > 0 ? effectiveLength : signal.Length;
         var (feats, spikes, macs) = _network.ForwardDetailed(signal, len);
-        var (pred, accOps) = _trainer!.Predict(feats);
-        return (pred, spikes, macs, accOps, feats);
+
+        double[] inputFeats = feats;
+        int auxCount = signal.Length - len;
+        if (auxCount > 0 && _trainer!.FeatureDim == _network.TotalFeatures + auxCount)
+        {
+            inputFeats = new double[_trainer.FeatureDim];
+            Array.Copy(feats, inputFeats, _network.TotalFeatures);
+            for (int a = 0; a < auxCount; a++)
+            {
+                inputFeats[_network.TotalFeatures + a] = signal[len + a];
+            }
+        }
+
+        var (pred, accOps) = _trainer!.Predict(inputFeats);
+        return (pred, spikes, macs, accOps, inputFeats);
     }
 
     /// <summary>

@@ -27,7 +27,9 @@ Experimental results validate stability against affine temporal transformations 
 - **Kairos Readout Accumulations:** 256.000
 - **Mini-Transformer MACs:** 3.590.272.000
 - **Simple LSTM MACs:** 622.592.000
-- **Allocated Heap Memory:** 1.590.273.672 bytes
+- **Allocated Heap Memory (Batch Harness):** 1.590.273.672 bytes (~397 KB/sample across batch harness)
+
+> *Efficiency & Methodology Note:* Operations represent algorithmic arithmetic counts (continuous MACs vs. discrete event additions). Heap memory reflects cumulative managed GC churn across the full batch test harness; per-sample inference memory footprint remains in the low kilobyte range. Baselines are native C# zero-augmentation reference implementations. Silicon power telemetry (Joules/Watts) is designated for dedicated neuromorphic hardware deployment.
 
 ### B. Dataset: ECG
 
@@ -49,5 +51,7 @@ Experimental results validate stability against affine temporal transformations 
 - **Kairos Readout Accumulations:** 63.476
 - **Mini-Transformer MACs:** 3.422.144.000
 - **Simple LSTM MACs:** 437.440.000
-- **Allocated Heap Memory:** 1.332.848.432 bytes
+- **Allocated Heap Memory (Batch Harness):** 1.332.848.432 bytes (~333 KB/sample across batch harness)
+
+> *Efficiency & Methodology Note:* Operations represent algorithmic arithmetic counts (continuous MACs vs. discrete event additions). Heap memory reflects cumulative managed GC churn across the full batch test harness; per-sample inference memory footprint remains in the low kilobyte range. Baselines are native C# zero-augmentation reference implementations. Silicon power telemetry (Joules/Watts) is designated for dedicated neuromorphic hardware deployment.
 

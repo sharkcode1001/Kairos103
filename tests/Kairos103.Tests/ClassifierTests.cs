@@ -4,9 +4,14 @@ using Xunit;
 
 namespace Kairos103.Tests;
 
+/// <summary>
+/// Empirical integration and convergence tests for KairosClassifier.
+/// Validates convergence on linearly separable rank-encoded signals and state serialization.
+/// </summary>
 public class ClassifierTests
 {
     [Fact]
+    [Trait("Category", "EmpiricalConvergence")]
     public void KairosClassifier_FitAndPredict_ConvergesOnSeparablePatterns()
     {
         int seqLen = 40;

@@ -18,9 +18,11 @@ public sealed class EfficiencyTracker
     /// </summary>
     public long TotalKairosOps => TotalFrontEndMacs + TotalSpikes + TotalAccumulateOps;
 
+    public long TotalSamples { get; private set; }
     public long InitialAllocatedBytes { get; private set; }
     public long FinalAllocatedBytes { get; private set; }
 
+    public void RecordSamples(int count) => TotalSamples += count;
     public void RecordSpikes(int count) => TotalSpikes += count;
     public void RecordAccumulateOps(int count) => TotalAccumulateOps += count;
     public void RecordFrontEndMacs(long count) => TotalFrontEndMacs += count;
@@ -41,7 +43,15 @@ public sealed class EfficiencyTracker
         FinalAllocatedBytes = GC.GetAllocatedBytesForCurrentThread();
     }
 
+    /// <summary>
+    /// Cumulative heap memory allocated in managed thread during the tracking window.
+    /// </summary>
     public long MemoryAllocatedBytes => Math.Max(0, FinalAllocatedBytes - InitialAllocatedBytes);
+
+    /// <summary>
+    /// Average managed heap allocation per evaluated inference sample.
+    /// </summary>
+    public double AllocatedBytesPerSample => TotalSamples > 0 ? (double)MemoryAllocatedBytes / TotalSamples : 0.0;
 
     /// <summary>
     /// End-to-end computational advantage of Kairos103 over Mini-Transformer:

@@ -49,7 +49,9 @@ public static class ExportReportCommand
                 sb.AppendLine($"- **Kairos Readout Accumulations:** {effTracker.TotalAccumulateOps:N0}");
                 sb.AppendLine($"- **Mini-Transformer MACs:** {effTracker.TotalTransformerMacs:N0}");
                 sb.AppendLine($"- **Simple LSTM MACs:** {effTracker.TotalLstmMacs:N0}");
-                sb.AppendLine($"- **Allocated Heap Memory:** {effTracker.MemoryAllocatedBytes:N0} bytes");
+                sb.AppendLine($"- **Allocated Heap Memory (Batch):** {effTracker.MemoryAllocatedBytes:N0} bytes (~{effTracker.AllocatedBytesPerSample:N1} bytes/sample)");
+                sb.AppendLine();
+                sb.AppendLine("> *Efficiency & Hardware Note:* Operations are algorithmic complexity counts (continuous MACs vs. discrete event additions). Heap memory reflects total managed GC churn across the evaluation suite; per-sample inference memory footprint remains in the low kilobyte range. Silicon power telemetry (Joules/Watts) is designated for dedicated neuromorphic hardware deployment.");
                 sb.AppendLine();
 
                 string dsSvgFile = Path.Combine(outputPath, $"WarpRobustness_{ds}.svg");

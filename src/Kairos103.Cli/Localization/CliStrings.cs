@@ -156,10 +156,10 @@ public static class CliStrings
     public static string LstmMacs(long macs) =>
         $"Simple LSTM MACs:                     {macs:N0}";
 
-    public static string HeapMemory(long bytes) =>
+    public static string HeapMemory(long bytes, double perSample = 0.0) =>
         IsSpanish
-            ? $"Memoria Heap Asignada:                {bytes:N0} bytes"
-            : $"Allocated Heap Memory:                {bytes:N0} bytes";
+            ? $"Memoria Heap Asignada (Batch):         {bytes:N0} bytes" + (perSample > 0 ? $" (~{perSample:N1} B/muestra)" : "")
+            : $"Allocated Heap Memory (Batch):         {bytes:N0} bytes" + (perSample > 0 ? $" (~{perSample:N1} B/sample)" : "");
 
     public static string JitterSweepHeader(double maxJitter, double step) =>
         IsSpanish

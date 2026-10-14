@@ -100,6 +100,9 @@ public static class RunBenchmarkCommand
 
         Console.WriteLine(CliStrings.Step3EvaluatingWarp);
 
+        // Pre-load test datasets into memory so CSV file I/O and text parsing
+        // do not contaminate pure neural inference allocation metrics:
+        var loadedTestSets = new (double Factor, string FactorStr, List<Kairos103.Core.Data.SignalSample> Data)?[factors.Length];
         for (int i = 0; i < factors.Length; i++)
         {
             double f = factors[i];
@@ -126,6 +129,20 @@ public static class RunBenchmarkCommand
             {
                 testData = testData.Take(200).ToList();
             }
+            loadedTestSets[i] = (f, fStr, testData);
+        }
+
+        var effTracker = new EfficiencyTracker();
+        effTracker.StartMemoryTracking();
+
+        for (int i = 0; i < factors.Length; i++)
+        {
+            var item = loadedTestSets[i];
+            if (item == null) continue;
+
+            var testData = item.Value.Data;
+            string fStr = item.Value.FactorStr;
+            effTracker.RecordSamples(testData.Count);
 
             int correctKairos = 0;
             int correctTrans = 0;
@@ -171,7 +188,7 @@ public static class RunBenchmarkCommand
         Console.WriteLine($"  - {CliStrings.ReadoutOps(effTracker.TotalAccumulateOps)}");
         Console.WriteLine($"  - {CliStrings.TransformerMacs(effTracker.TotalTransformerMacs)}");
         Console.WriteLine($"  - {CliStrings.LstmMacs(effTracker.TotalLstmMacs)}");
-        Console.WriteLine($"  - {CliStrings.HeapMemory(effTracker.MemoryAllocatedBytes)}");
+        Console.WriteLine($"  - {CliStrings.HeapMemory(effTracker.MemoryAllocatedBytes, effTracker.AllocatedBytesPerSample)}");
 
         return (factors, kairosAcc, transformerAcc, lstmAcc, effTracker);
     }

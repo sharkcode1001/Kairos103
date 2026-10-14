@@ -3,9 +3,22 @@ using Xunit;
 
 namespace Kairos103.Tests;
 
+/// <summary>
+/// Invariance verification suite for Kairos103.
+/// Clearly partitioned into:
+/// 1. Formal Mathematical Invariance Tests (Category: FormalInvariance):
+///    Verifies analytical bijection and strict order conservation under affine transformations t' = alpha*t + beta.
+/// 2. Empirical Front-End & System Robustness Tests (Category: EmpiricalRobustness):
+///    Evaluates end-to-end tolerance of the discrete sampling front-end and classifier across scale variations.
+/// </summary>
 public class InvarianceTests
 {
+    // =========================================================================
+    // 1. FORMAL MATHEMATICAL INVARIANCE (Theorem 4.1: sigma(T') == sigma(T))
+    // =========================================================================
+
     [Theory]
+    [Trait("Category", "FormalInvariance")]
     [InlineData(0.5, 0.0)]
     [InlineData(0.8, 10.0)]
     [InlineData(1.0, 0.0)]
@@ -36,6 +49,7 @@ public class InvarianceTests
     }
 
     [Fact]
+    [Trait("Category", "FormalInvariance")]
     public void RankWeights_AreStrictlyIdenticalUnderTimeDilation()
     {
         double[] nominal = [10.0, 20.0, 30.0, 40.0];
@@ -50,7 +64,12 @@ public class InvarianceTests
         }
     }
 
+    // =========================================================================
+    // 2. EMPIRICAL FRONT-END & DISCRETIZATION ROBUSTNESS (Sampled Signals)
+    // =========================================================================
+
     [Theory]
+    [Trait("Category", "EmpiricalRobustness")]
     [InlineData(0.5, 0.70)]
     [InlineData(0.8, 0.80)]
     [InlineData(1.2, 0.75)]
@@ -89,6 +108,7 @@ public class InvarianceTests
     }
 
     [Fact]
+    [Trait("Category", "EmpiricalRobustness")]
     public void KairosNetwork_EndToEnd_ClassifierMaintainsHighAccuracyOnWarpedSignals_WithoutRetraining()
     {
         // Train classifier exclusively at nominal speed (1.0x)

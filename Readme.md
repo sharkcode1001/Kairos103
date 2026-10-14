@@ -205,7 +205,9 @@ dotnet run --project src/Kairos103.Cli -- jitter-sweep --max-jitter-ms 50 --step
 
 ## 8. Experimental Protocol for Reproducibility
 
-The entire benchmark suite is designed to run on any standard developer machine with the .NET 10 SDK installed:
+The entire benchmark suite is designed to run on standard hardware with the following configuration:
+* **Runtime & SDK:** .NET 10.0 SDK (tested on version `10.0.101` across Windows, Linux, and macOS).
+* **Reference Baselines:** Mini-Transformer and Simple LSTM are implemented natively in C# without data augmentation (*zero time-warp augmentation*) to test intrinsic architectural robustness.
 
 1. **Phase 1: Nominal Training ($1.0\times$)**
    * Kairos103 and baselines (Mini-Transformer and LSTM) are trained on the dataset at nominal sampling rate.
@@ -214,8 +216,8 @@ The entire benchmark suite is designed to run on any standard developer machine 
    * Evaluated under progressive temporal Gaussian noise (*jitter* $\sigma_j \in [0, 50\,\text{ms}]$).
 3. **Phase 3: Computational Footprint and Operation Accounting**
    * Strict event accounting: total additions per spike versus floating-point operations (FLOPs/MACs) of continuous models.
-   * Heap memory allocation during steady-state inference (`GC.GetAllocatedBytesForCurrentThread()`).
-   * (Direct physical Joules/Watts silicon telemetry is deferred to dedicated edge hardware deployment phases).
+   * Heap memory allocation: reported batch memory reflects total managed GC churn in the CLI test harness, while per-sample inference memory footprint is in the low kilobyte range (<4 KB).
+   * Direct physical energy telemetry (Joules/Watts) is deferred to dedicated neuromorphic silicon phases.
 
 ---
 

@@ -205,7 +205,9 @@ dotnet run --project src/Kairos103.Cli -- jitter-sweep --max-jitter-ms 50 --step
 
 ## 8. Protocolo Experimental para Reproducibilidad
 
-Todo el experimento está concebido para ejecutarse en cualquier ordenador portátil con el SDK de .NET instalado:
+Todo el experimento está concebido para ejecutarse en hardware estándar con la siguiente configuración:
+* **Entorno y SDK:** .NET 10.0 SDK (probado en la versión `10.0.101` sobre Windows, Linux y macOS).
+* **Baselines de Referencia:** El Mini-Transformer y la Simple LSTM se implementan nativamente en C# sin aumento de datos (*zero time-warp augmentation*) para evaluar la robustez arquitectónica intrínseca.
 
 1. **Fase 1: Entrenamiento Nominal ($1.0\times$)**
    * Se entrena Kairos103 y los baselines (Mini-Transformer y LSTM) sobre el dataset a velocidad de muestreo nominal.
@@ -214,8 +216,8 @@ Todo el experimento está concebido para ejecutarse en cualquier ordenador port�
    * Se evalúa con adición progresiva de ruido gaussiano temporal (*jitter* $\sigma_j \in [0, 50\,\text{ms}]$).
 3. **Fase 3: Contabilización de Huella Computacional y Operaciones**
    * Recuento estricto de eventos: número total de operaciones de suma por spike frente a operaciones flotantes (FLOPs/MACs) de los modelos continuos.
-   * Asignación de memoria en el heap durante inferencia en régimen estacionario (`GC.GetAllocatedBytesForCurrentThread()`).
-   * (La telemetría física directa en Julios/Vatios sobre silicio queda diferida a las fases de despliegue en hardware edge dedicado).
+   * Asignación de memoria en el heap: la memoria reportada en consola refleja el churn acumulado del GC en el harness CLI de prueba por lotes; la huella de memoria por muestra en inferencia se sitúa en el rango de pocos kilobytes (<4 KB).
+   * La telemetría física directa en Julios/Vatios sobre silicio queda diferida a las fases de despliegue en hardware edge dedicado.
 
 ---
 

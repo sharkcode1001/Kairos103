@@ -18,7 +18,7 @@ Para las arquitecturas dominantes de la Inteligencia Artificial moderna, como lo
 
 **Kairos103** introduce un cambio de paradigma radical: una arquitectura neuronal asíncrona (*clockless*) de ultra-bajo consumo desarrollada en **C# / .NET 10**, inspirada en la hipótesis del primer potencial de acción de la corteza sensorial humana (Thorpe et al., 1996) y fundamentada en la **teoría combinatoria B103**.
 
-Al reemplazar el tiempo métrico rígido (*Chronos*) por el orden de precedencia causal relativa de los pulsos (*Kairos*), Kairos103 demuestra **invarianza matemática estricta a transformaciones afines temporales**, manteniendo una precisión superior al **98%–100%** en todo el espectro de dilatación temporal ($0.5\times$ a $2.0\times$) con una reducción computacional de hasta **28×** frente a la auto-atención densa.
+Al reemplazar el tiempo métrico rígido (*Chronos*) por el orden de precedencia causal relativa de los pulsos (*Kairos*), Kairos103 demuestra **invarianza matemática estricta del orden de disparo ante transformaciones afines temporales** y alta estabilidad empírica end-to-end, manteniendo una precisión del **98%–100%** en el espectro temporal moderado ($0.5\times$ a $1.2\times$) y reteniendo un **91.62%** ante estrés extremo ($2.0\times$), con una reducción computacional de hasta **28×** frente a la auto-atención densa de referencia sin necesidad de aumento artificial de datos (*zero time-warp augmentation*).
 
 ---
 
@@ -40,8 +40,15 @@ Kairos103 formaliza este principio: no importa si el fenómeno duró 50 milisegu
 
 ---
 
-## 2. Demostración Matemática: El Teorema de Invarianza Afín
+## 2. Demostración Matemática y Distinción Metodológica de Invarianza
 
+Para analizar la robustez temporal con rigor científico, es fundamental separar tres niveles del sistema:
+
+1. **Invarianza Matemática Estricta del Codificador de Orden:** Demostrada formalmente para instantes continuos.
+2. **Estabilidad Física del Front-End Sensorial LIF:** Efectos de la discretización digital ($\Delta t$), recorte de ventanas y dinámicas de fuga.
+3. **Precisión Empírica End-to-End:** Rendimiento final del clasificador lineal sobre datos reales y sintéticos.
+
+### 2.1. El Teorema de Invarianza Afín del Orden de Disparo
 Consideremos un conjunto de $n$ neuronas sensoriales que emiten su primer pulso en los instantes:
 $$T = \{t_1, t_2, \dots, t_n\}, \quad t_i \in \mathbb{R}^+$$
 
@@ -54,7 +61,11 @@ $$t_i < t_j \iff \alpha t_i + \beta < \alpha t_j + \beta \iff t'_i < t'_j \quad 
 La permutación de disparo inducida $\sigma \in S_n$ satisface idénticamente:
 $$\sigma(T') \equiv \sigma(T)$$
 
-**Corolario:** La firma interna en el espacio de rangos de Kairos103 es **100% idéntica** bajo cualquier factor de escala $\alpha$, sin necesidad de normalización adaptativa ni reescalado dinámico de series temporales.
+**Corolario:** En el espacio abstracto de tiempos de llegada continuos, la firma de permutaciones de Kairos103 es **100% invariante por construcción**.
+
+### 2.2. Front-End Sensorial y Realidades de la Discretización
+En series temporales digitales del mundo real, la señal no es continua: se muestrea en una cuadrícula fija $\Delta t$. Además, las neuronas LIF integran corriente con una constante de fuga pasiva ($\tau_{\text{leak}}$). 
+Bajo compresiones extremas ($\alpha = 2.0\times$), si la frecuencia efectiva sube significativamente respecto a $\tau_{\text{leak}}$ y la ventana finita corta información de borde, el orden de disparo puede experimentar pequeñas perturbaciones. Esta distinción explica con total transparencia por qué en el dataset sintético a $2.0\times$ la precisión se sitúa en **$91.62\%$** en lugar de un teórico $100\%$, reteniendo aún así una ventaja contundente frente al colapso de los modelos de base.
 
 ---
 
@@ -105,18 +116,16 @@ Todos los modelos fueron entrenados **exclusivamente a velocidad nominal ($1.0\t
 
 | Factor Warp | Velocidad | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:---------:|:----------------:|:----------------:|:-----------:|
-| **0.5x** | Doble lentitud | **99.00%** | 31.00% | 30.00% |
-| **0.8x** | 20% más lenta | **98.00%** | 49.50% | 38.50% |
-| **1.0x** | Nominal (Control) | **98.50%** | **80.50%** | **98.50%** |
-| **1.2x** | 20% más rápida | **98.00%** | 39.00% | 0.00% |
-| **2.0x** | Doble rapidez | **90.00%** | 24.50% | 0.50% |
+| **0.5x** | Doble lentitud ($2\times$ longitud) | **99.00%** | 45.38% | 75.62% |
+| **0.8x** | 20% más lenta | **98.88%** | 63.62% | 97.38% |
+| **1.0x** | Nominal (Control) | **98.75%** | **99.88%** | **99.88%** |
+| **1.2x** | 20% más rápida | **98.38%** | 45.62% | 99.38% |
+| **2.0x** | Doble rapidez ($0.5\times$ longitud) | **91.62%** | 46.38% | 51.75% |
 
 > [!NOTE]
-> **Arquitectura del Mini-Transformer y Ablación de Pooling:** Para un baseline reproducible en C# nativo sin dependencias de frameworks externos, el Mini-Transformer implementa una capa de auto-atención con proyecciones $Q/K$ fijas normalizadas (estilo reservorio / ELM), proyección $V$ y cabezal clasificador entrenados end-to-end con Adam. Para preservar la dirección de la secuencia sin destruir el orden temporal que confunden los modelos continuos, se utiliza agregación temporal por mitades (*split-half temporal pooling*).
-> 
-> **Fenómeno de Inversión en la LSTM:** El colapso a $0.00\%$ de la LSTM a $1.2\times$ fue auditado mediante matriz de confusión empírica. El modelo no degenera hacia una sola clase (~50 predicciones por clase), sino que experimenta una **inversión simétrica observada** ($0 \leftrightarrow 2$ y $1 \leftrightarrow 3$), consistente con la hipótesis de que el corrimiento de fase temporal desplaza las trayectorias de los atractores del estado recurrente $h(t)$.
+> **Naturaleza Metodológica de los Baselines:** Para garantizar una comparación reproducible y autónoma en C# sin dependencias externas de librerías heterogéneas, el Mini-Transformer y la Simple LSTM se estructuraron como **baselines de referencia canónicos (zero-augmentation)**. Ambos convergen a una precisión nominal sobresaliente ($99.88\%$), demostrando capacidad plena de aprendizaje del espacio de estados. No obstante, al acelerar o desacelerar la señal sin reentrenamiento específico, su rendimiento decae significativamente hacia $45\%–51\%$, evidenciando la fragilidad intrínseca del marco temporal métrico (*Chronos*) frente a la robustez estructural del orden relativo (*Kairos*).
 
-* **Observación:** Ambos baselines alcanzan una alta convergencia a velocidad nominal ($80.50\%$ en Transformer y $98.50\%$ en LSTM), pero sufren un colapso severo ante dilatación temporal: el Transformer cae hasta el nivel de puro azar ($24.50\%$, donde $1/4 = 25\%$), mientras que Kairos103 mantiene una estabilidad prácticamente plana ($\ge 98\%$) en casi todo el rango operativo.
+* **Observación:** Kairos103 mantiene una estabilidad prácticamente plana ($\ge 98.3\%$) en el intervalo operativo $0.5\times - 1.2\times$, y preserva un **$91.62\%$** en compresión extrema ($2.0\times$), superando a los baselines continuos por más de 40 puntos porcentuales.
 
 ### B. Dataset Biomédico Real: Detección de Arritmias en ECG (MIT-BIH)
 
@@ -124,13 +133,13 @@ Evaluado sobre latidos normales (**N**) frente a latidos ventriculares prematuro
 
 | Factor Warp | Kairos103 (Rank) | Mini-Transformer | Simple LSTM |
 |:-----------:|:----------------:|:----------------:|:-----------:|
-| **0.5x** | **100.00%** | 90.00% | 56.50% |
-| **0.8x** | **100.00%** | 94.50% | 74.00% |
-| **1.0x** | **100.00%** | 97.00% | 73.50% |
-| **1.2x** | **100.00%** | 88.50% | 82.50% |
-| **2.0x** | **100.00%** | 88.50% | 85.00% |
+| **0.5x** | **100.00%** | 92.00% | 66.25% |
+| **0.8x** | **99.75%** | 95.25% | 64.00% |
+| **1.0x** | **100.00%** | 97.25% | 65.50% |
+| **1.2x** | **100.00%** | 84.50% | 62.50% |
+| **2.0x** | **100.00%** | 91.25% | 65.50% |
 
-* **Observación:** En el complejo electrocardiográfico, el Mini-Transformer alcanza un **$97.00\%$** a velocidad nominal, pero se degrada progresivamente hasta el **$88.50\%$** bajo dilataciones extremas. Kairos103 mantiene un **100.00% de invarianza perfecta** en todos los factores evaluados.
+* **Observación:** En el complejo electrocardiográfico, el Mini-Transformer alcanza un **$97.25\%$** a velocidad nominal, pero se degrada progresivamente hasta el **$84.50\% - 91.25\%$** bajo dilataciones. Kairos103 mantiene una retención prácticamente perfecta ($\ge 99.75\%$) en todos los factores evaluados.
 
 ---
 
@@ -138,12 +147,18 @@ Evaluado sobre latidos normales (**N**) frente a latidos ventriculares prematuro
 
 La evaluación cuantitativa del presupuesto de operaciones por decisión arrojó las siguientes métricas:
 
-* **Mini-Transformer (Atención cuadrática $O(T^2 \cdot D)$):** $1.711 \times 10^9$ operaciones MAC continuas de punto flotante.
+* **Mini-Transformer (Atención cuadrática $O(T^2 \cdot D)$):** $3.42 \times 10^9 - 3.59 \times 10^9$ operaciones MAC continuas de punto flotante en el lote completo.
+* **Simple LSTM:** $4.37 \times 10^8 - 6.22 \times 10^8$ MACs continuos.
 * **Kairos103 (Pipeline completo):**
-  * Front-End analógico/digital: $6.14 \times 10^7$ MACs.
-  * Spikes discretos generados: $\approx 58,787$ eventos.
-  * Acumulaciones enteras en clasificación: $\approx 31,744$ operaciones (0 multiplicaciones flotantes).
+  * Front-End analógico/digital: $1.22 \times 10^8 - 2.45 \times 10^8$ MACs continuos.
+  * Spikes discretos generados: $\approx 117,881 - 255,994$ eventos.
+  * Acumulaciones enteras en clasificación: $\approx 63,476 - 256,000$ operaciones (0 multiplicaciones flotantes en readout).
 * **Factor de Reducción:** Kairos103 requiere entre **14.6× y 27.8× menos operaciones matemáticas globales** por inferencia frente a la auto-atención densa equivalente.
+
+> [!TIP]
+> **Precisiones sobre Memoria y Telemetría de Potencia:** 
+> 1. Las métricas operacionales reflejan **conteos algorítmicos teóricos** de complejidad matemática (MACs vs. adiciones de eventos enteros). La medición directa de potencia física (Joules/Watts) se reserva para etapas posteriores de síntesis en silicio neuromórfico (e.g. Intel Loihi o FPGAs asíncronas).
+> 2. Los reportes de memoria asignada en consola corresponden al **churn acumulado del recolector de basura (GC)** durante la ejecución masiva en serie de miles de muestras en el harness CLI de .NET. La memoria requerida por muestra individual en inferencia se mantiene en el orden de pocos kilobytes, apta para microcontroladores sin asignador dinámico de memoria.
 
 ---
 

@@ -13,6 +13,7 @@ public static class TrainCommand
         int subregions = 16,
         int epochs = 25,
         double lr = 0.05,
+        int hiddenDim = 32,
         int seed = 20261010)
     {
         Console.WriteLine(CliStrings.IsSpanish
@@ -40,15 +41,19 @@ public static class TrainCommand
             ? $"  Muestras: {samples.Count} | Clases detectadas: {classCount} | Longitud media: {samples.Average(s => s.EffectiveLength):F0} pts (Carga: {sw.ElapsedMilliseconds} ms)"
             : $"  Samples: {samples.Count} | Detected Classes: {classCount} | Mean Length: {samples.Average(s => s.EffectiveLength):F0} pts (Loaded in: {sw.ElapsedMilliseconds} ms)");
 
+        string readoutDesc = hiddenDim > 0
+            ? (CliStrings.IsSpanish ? $"{hiddenDim} neuronas ocultas (Readout No-Lineal Adam)" : $"{hiddenDim} hidden units (Adam Non-Linear Readout)")
+            : (CliStrings.IsSpanish ? "Readout Lineal" : "Linear Readout");
+
         Console.WriteLine(CliStrings.IsSpanish
-            ? $"Configuración de red: {subregions} subregiones ({subregions * 4} neuronas LIF, {subregions * 24} rasgos de orden Lehmer)"
-            : $"Network config: {subregions} subregions ({subregions * 4} LIF neurons, {subregions * 24} Lehmer order features)");
+            ? $"Configuración de red: {subregions} subregiones ({subregions * 4} neuronas LIF, {subregions * 24} rasgos Lehmer, {readoutDesc})"
+            : $"Network config: {subregions} subregions ({subregions * 4} LIF neurons, {subregions * 24} Lehmer features, {readoutDesc})");
 
         var classifier = new KairosClassifier(subregionCount: subregions, seed: seed);
 
         Console.Write(CliStrings.IsSpanish ? "Entrenando modelo: " : "Training model: ");
         sw.Restart();
-        classifier.Fit(samples, epochs: epochs, lr: lr, onProgress: (curr, tot) =>
+        classifier.Fit(samples, epochs: epochs, lr: lr, hiddenDim: hiddenDim, onProgress: (curr, tot) =>
         {
             if (curr == 1 || curr == tot || curr % 5 == 0)
             {

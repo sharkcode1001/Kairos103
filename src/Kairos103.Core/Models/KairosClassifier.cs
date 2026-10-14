@@ -22,12 +22,18 @@ public sealed record EvaluationResult(
 public sealed class KairosModelMetadata
 {
     public string Architecture { get; set; } = "Kairos103";
-    public string Version { get; set; } = "1.0.0";
+    public string Version { get; set; } = "1.1.0";
     public int SubregionCount { get; set; }
     public int Seed { get; set; }
     public int ClassCount { get; set; }
     public int TotalFeatures { get; set; }
+    public int HiddenDim { get; set; } = 32;
     public double[][] Weights { get; set; } = [];
+    public double[] Bias { get; set; } = [];
+    public double[][] W1 { get; set; } = [];
+    public double[] B1 { get; set; } = [];
+    public double[][] W2 { get; set; } = [];
+    public double[] B2 { get; set; } = [];
 }
 
 /// <summary>
@@ -43,6 +49,7 @@ public sealed class KairosClassifier
 
     public int TotalNeurons => _network?.TotalNeurons ?? (SubregionCount * 4);
     public int TotalFeatures => _network?.TotalFeatures ?? (SubregionCount * 24);
+    public int HiddenDim => _trainer?.HiddenDim ?? 0;
 
     private KairosNetwork _network;
     private PairwiseTrainer? _trainer;
@@ -61,6 +68,7 @@ public sealed class KairosClassifier
         IReadOnlyList<SignalSample> samples,
         int epochs = 25,
         double lr = 0.05,
+        int hiddenDim = 32,
         Action<int, int>? onProgress = null)
     {
         if (samples == null || samples.Count == 0)
@@ -71,7 +79,7 @@ public sealed class KairosClassifier
         int uniqueLabels = samples.Select(s => s.Label).Distinct().Count();
         ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
 
-        _trainer = new PairwiseTrainer(ClassCount, _network.TotalFeatures);
+        _trainer = new PairwiseTrainer(ClassCount, _network.TotalFeatures, hiddenDim: hiddenDim, seed: Seed);
 
         // Pre-encode all signals through the Kairos asynchronous front-end
         var encodedTrain = new List<(double[] Features, int Label)>(samples.Count);
@@ -94,6 +102,7 @@ public sealed class KairosClassifier
         IReadOnlyList<int> labels,
         int epochs = 25,
         double lr = 0.05,
+        int hiddenDim = 32,
         Action<int, int>? onProgress = null)
     {
         if (signals.Count != labels.Count)
@@ -105,7 +114,7 @@ public sealed class KairosClassifier
             samples.Add(new SignalSample(labels[i], signals[i], signals[i].Length));
         }
 
-        Fit(samples, epochs, lr, onProgress);
+        Fit(samples, epochs, lr, hiddenDim, onProgress);
     }
 
     /// <summary>
@@ -115,10 +124,11 @@ public sealed class KairosClassifier
         string csvPath,
         int epochs = 25,
         double lr = 0.05,
+        int hiddenDim = 32,
         Action<int, int>? onProgress = null)
     {
         var samples = SignalDataset.LoadCsv(csvPath);
-        Fit(samples, epochs, lr, onProgress);
+        Fit(samples, epochs, lr, hiddenDim, onProgress);
     }
 
     /// <summary>
@@ -219,7 +229,13 @@ public sealed class KairosClassifier
             Seed = Seed,
             ClassCount = ClassCount,
             TotalFeatures = TotalFeatures,
-            Weights = _trainer!.Weights
+            HiddenDim = _trainer!.HiddenDim,
+            Weights = _trainer.Weights,
+            Bias = _trainer.Bias,
+            W1 = _trainer.W1,
+            B1 = _trainer.B1,
+            W2 = _trainer.W2,
+            B2 = _trainer.B2
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -245,10 +261,32 @@ public sealed class KairosClassifier
             IsTrained = true
         };
 
-        classifier._trainer = new PairwiseTrainer(meta.ClassCount, meta.TotalFeatures);
-        for (int c = 0; c < meta.ClassCount; c++)
+        classifier._trainer = new PairwiseTrainer(meta.ClassCount, meta.TotalFeatures, meta.HiddenDim, meta.Seed);
+
+        if (meta.HiddenDim > 0 && meta.W1 != null && meta.W1.Length > 0)
         {
-            Array.Copy(meta.Weights[c], classifier._trainer.Weights[c], meta.TotalFeatures);
+            for (int j = 0; j < meta.HiddenDim; j++)
+            {
+                Array.Copy(meta.W1[j], classifier._trainer.W1[j], meta.TotalFeatures);
+            }
+            if (meta.B1 != null) Array.Copy(meta.B1, classifier._trainer.B1, meta.HiddenDim);
+
+            for (int c = 0; c < meta.ClassCount; c++)
+            {
+                Array.Copy(meta.W2[c], classifier._trainer.W2[c], meta.HiddenDim);
+            }
+            if (meta.B2 != null) Array.Copy(meta.B2, classifier._trainer.B2, meta.ClassCount);
+        }
+        else if (meta.Weights != null && meta.Weights.Length > 0)
+        {
+            for (int c = 0; c < meta.ClassCount; c++)
+            {
+                Array.Copy(meta.Weights[c], classifier._trainer.Weights[c], meta.TotalFeatures);
+            }
+            if (meta.Bias != null && meta.Bias.Length == meta.ClassCount)
+            {
+                Array.Copy(meta.Bias, classifier._trainer.Bias, meta.ClassCount);
+            }
         }
 
         return classifier;

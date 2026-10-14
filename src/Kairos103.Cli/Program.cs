@@ -276,6 +276,7 @@ switch (command)
         int subregions = 16;
         int epochs = 25;
         double lr = 0.05;
+        int hidden = 32;
         int seed = 20261010;
 
         for (int i = 1; i < args.Length; i++)
@@ -300,6 +301,10 @@ switch (command)
             {
                 lr = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
             }
+            else if (args[i] == "--hidden" && i + 1 < args.Length)
+            {
+                hidden = int.Parse(args[++i]);
+            }
             else if (args[i] == "--seed" && i + 1 < args.Length)
             {
                 seed = int.Parse(args[++i]);
@@ -319,7 +324,7 @@ switch (command)
             break;
         }
 
-        TrainCommand.Execute(dataPath, outputPath, subregions, epochs, lr, seed);
+        TrainCommand.Execute(dataPath, outputPath, subregions, epochs, lr, hidden, seed);
         break;
     }
 

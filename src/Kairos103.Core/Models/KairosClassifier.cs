@@ -49,7 +49,7 @@ public sealed class KairosClassifier
     public bool IsTrained { get; private set; }
 
     public int TotalNeurons => _network?.TotalNeurons ?? (SubregionCount * 4);
-    public int TotalFeatures => _network?.TotalFeatures ?? (SubregionCount * 24);
+    public int TotalFeatures => _trainer?.FeatureDim ?? _network?.TotalFeatures ?? (SubregionCount * 24);
     public int HiddenDim => _trainer?.HiddenDim ?? 0;
 
     private KairosNetwork _network;
@@ -344,8 +344,8 @@ public sealed class KairosClassifier
             SubregionCount = SubregionCount,
             Seed = Seed,
             ClassCount = ClassCount,
-            TotalFeatures = TotalFeatures,
-            HiddenDim = _trainer!.HiddenDim,
+            TotalFeatures = _trainer!.FeatureDim,
+            HiddenDim = _trainer.HiddenDim,
             Weights = _trainer.Weights,
             Bias = _trainer.Bias,
             W1 = _trainer.W1,

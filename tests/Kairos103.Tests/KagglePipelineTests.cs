@@ -198,5 +198,27 @@ public class KagglePipelineTests
         cnn.Fit(train);
         int cnnPred = cnn.Predict(val[0]);
         Assert.True(cnnPred >= 0 && cnnPred < 4);
+
+        // Verify Save and Load preserve auxiliary features (FeatureDim = TotalFeatures + 3)
+        string tempModel = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.kairos");
+        try
+        {
+            classifier.Save(tempModel);
+            var loaded = KairosClassifier.Load(tempModel);
+
+            // Subregions: 8 * 24 = 192, plus 3 aux features = 195
+            Assert.Equal(195, loaded.TotalFeatures);
+
+            for (int i = 0; i < val.Count; i++)
+            {
+                int pOriginal = classifier.Predict(val[i].ToCombinedSignal(), effectiveLength: 250);
+                int pLoaded = loaded.Predict(val[i].ToCombinedSignal(), effectiveLength: 250);
+                Assert.Equal(pOriginal, pLoaded);
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempModel)) File.Delete(tempModel);
+        }
     }
 }

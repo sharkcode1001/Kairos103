@@ -1,0 +1,9 @@
+**/.git
+**/.github
+**/bin
+**/obj
+**/.vs
+**/.gemini
+**/results
+*.md
+_temp_*

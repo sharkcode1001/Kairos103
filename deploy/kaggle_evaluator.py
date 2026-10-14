@@ -150,8 +150,8 @@ def run_inference(cli_cmd_parts, model_path, test_csv, raw_output_csv):
         raise RuntimeError(f"Kairos103 process exited with code {result.returncode}")
 
 
-def build_submission(ids, raw_output_csv, final_submission_csv):
-    """Extracts predictions and formats standard competition submission CSV (Id,Prediction)."""
+def build_submission(ids, raw_output_csv, final_submission_csv, id_col="id", label_col="label"):
+    """Extracts predictions and formats standard competition submission CSV (id,label)."""
     predictions = []
     with open(raw_output_csv, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -163,7 +163,7 @@ def build_submission(ids, raw_output_csv, final_submission_csv):
 
     with open(final_submission_csv, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Id", "Prediction"])
+        writer.writerow([id_col, label_col])
         for sample_id, pred in zip(ids, predictions):
             writer.writerow([sample_id, pred])
 
@@ -177,6 +177,8 @@ def main():
     parser.add_argument("--model", default="model.kairos", help="Path to trained .kairos model")
     parser.add_argument("--test", required=True, help="Path to competition test CSV")
     parser.add_argument("--output", default="submission.csv", help="Output submission CSV path")
+    parser.add_argument("--id-col", default="id", help="Header name for sample ID column (default: id)")
+    parser.add_argument("--label-col", default="label", help="Header name for prediction label column (default: label)")
     args = parser.parse_args()
 
     cli_cmd_parts = resolve_cli_command(args.cli)
@@ -186,7 +188,7 @@ def main():
     try:
         ids = prepare_kaggle_input(args.test, temp_input)
         run_inference(cli_cmd_parts, args.model, temp_input, temp_output)
-        build_submission(ids, temp_output, args.output)
+        build_submission(ids, temp_output, args.output, id_col=args.id_col, label_col=args.label_col)
     finally:
         for temp_file in [temp_input, temp_output]:
             if os.path.exists(temp_file):

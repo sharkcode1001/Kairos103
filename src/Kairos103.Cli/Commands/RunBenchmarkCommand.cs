@@ -95,14 +95,11 @@ public static class RunBenchmarkCommand
         double[] transformerAcc = new double[factors.Length];
         double[] lstmAcc = new double[factors.Length];
 
-        var effTracker = new EfficiencyTracker();
-        effTracker.StartMemoryTracking();
-
         Console.WriteLine(CliStrings.Step3EvaluatingWarp);
 
         // Pre-load test datasets into memory so CSV file I/O and text parsing
         // do not contaminate pure neural inference allocation metrics:
-        var loadedTestSets = new (double Factor, string FactorStr, List<Kairos103.Core.Data.SignalSample> Data)?[factors.Length];
+        var loadedTestSets = new (double Factor, string FactorStr, List<Kairos103.Benchmarks.Data.TimeSeriesSample> Data)?[factors.Length];
         for (int i = 0; i < factors.Length; i++)
         {
             double f = factors[i];

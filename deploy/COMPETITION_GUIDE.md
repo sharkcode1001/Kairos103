@@ -36,24 +36,24 @@ La prueba más accesible, inmediata y de mayor impacto público es el benchmark 
 
 4. **Publica tu Notebook en Kaggle:**
    * Crea un Notebook público titulado: *"Kairos103: Clockless Rank-Order SNN for Time-Warp Invariant ECG Classification"*.
-   * Adjunta tu binario compilado o código fuente y muestra la tabla comparativa: **Precisión equivalente o superior a una ResNet con 0 multiplicaciones flotantes en la inferencia**.
+   * Adjunta tu binario compilado o código fuente y muestra la tabla comparativa: **Rendimiento competitivo frente a arquitecturas continuas (ResNet / LSTM) preservando invarianza temporal estricta y evitando la auto-atención densa $O(T^2)$**.
 
 ---
 
 ## 2. Competición Oficial en Silicio y Edge AI: MLPerf Tiny (MLCommons)
 
-Si el objetivo es certificar que Kairos103 es una de las arquitecturas neuronales más eficientes del mundo para sensores biomédicos y microcontroladores:
+Para certificar cuantitativamente la eficiencia energética y el presupuesto de operaciones de Kairos103:
 
 * **Plataforma:** [MLCommons MLPerf Tiny Inference Benchmark](https://mlcommons.org/benchmarks/inference-tiny/)
 * **Qué audita:**
   * Número real de operaciones aritméticas por decisión.
-  * Tamaño del binario y memoria requerida en microcontroladores (ARM Cortex-M / RISC-V).
+  * Tamaño del binario y memoria requerida en dispositivos empotrados (ARM Cortex-M / RISC-V).
   * Latencia de inferencia y consumo en microjulios ($\mu\text{J}$).
 * **Categorías:** *Anomaly Detection* (detección de anomalías en vibración 1D) y *Sensory Classification*.
 * **Cómo competir:**
-  * Se compila el núcleo C# mediante **Native AOT**:
+  * Se compila el ejecutable para Linux o la arquitectura objetivo:
     ```bash
-    dotnet publish src/Kairos103.Cli -c Release -r linux-x64 -p:PublishAot=true
+    dotnet publish src/Kairos103.Cli -c Release -r linux-x64 --self-contained true
     ```
   * Se ejecuta el arnés de medición de MLCommons sobre el binario exportado.
 
@@ -64,36 +64,36 @@ Si el objetivo es certificar que Kairos103 es una de las arquitecturas neuronale
 * **Plataforma:** [PhysioNet / Computing in Cardiology (CinC) Challenges](https://physionet.org/about/challenge/)
 * **Qué es:** La competición científica más prestigiosa en cardiología computacional.
 * **Mecanismo:**
-  * Los organizadores no proporcionan las etiquetas de prueba.
-  * Subes tu contenedor Docker a su servidor:
+  * Cada desafío anual define un esquema de entrada/salida y un conjunto de prueba completamente ciego.
+  * Adaptando los scripts de inferencia al formato exigido por la edición, subes tu contenedor Docker:
     ```bash
     docker build -t kairos103 -f deploy/Dockerfile .
     ```
-  * El sistema de PhysioNet evalúa tu contenedor de forma ciega y publica tu algoritmo en el ranking internacional junto a publicaciones en el congreso CinC.
+  * El sistema de evaluación ejecuta el contenedor de forma autónoma y publica el algoritmo en el ranking internacional oficial.
 
 ---
 
 ## 4. Demostración Web Pública: Hugging Face Space Interactivo
 
-Para que cualquier persona o reclutador pueda probar Kairos103 directamente desde su navegador sin instalar nada:
+Para que cualquier persona o evaluador pueda probar Kairos103 directamente desde su navegador sin instalar nada:
 
 1. Crea una cuenta en [Hugging Face](https://huggingface.co).
-2. Crea un **Space** gratuito con SDK **Docker** o **Gradio**.
+2. Crea un **Space** gratuito con SDK **Docker**.
 3. Sube el código de Kairos103 y el `deploy/Dockerfile`.
 4. El Space ofrecerá una interfaz visual con:
    * Gráfica interactiva de un latido ECG.
    * Un control deslizante de velocidad temporal: `[ 0.5x ----- 1.0x ----- 2.0x ]`.
    * Visualización en tiempo real:
-     * **Transformer convencional:** Falla al alejar la velocidad de 1.0x.
-     * **Kairos103:** Mantiene la detección correcta con <1,000 spikes y 0 multiplicaciones densas.
+     * **Transformer convencional:** Se degrada al variar la escala de tiempo.
+     * **Kairos103:** Mantiene la detección correcta con disparos asíncronos y readout lineal disperso.
 
 ---
 
-## 5. Resumen de Herramientas Preparadas en este Directorio
+## 5. Herramientas Preparadas en este Directorio
 
 | Archivo | Función |
 | :--- | :--- |
-| [`deploy/Dockerfile`](file:///c:/Users/VANICA/Documents/GitHub/Kairos103/deploy/Dockerfile) | Contenedor multi-stage universal para ejecutar Kairos en cualquier nube o servidor Linux. |
-| [`deploy/.dockerignore`](file:///c:/Users/VANICA/Documents/GitHub/Kairos103/deploy/.dockerignore) | Filtro de archivos para compilaciones Docker rápidas y limpias. |
-| [`deploy/kaggle_evaluator.py`](file:///c:/Users/VANICA/Documents/GitHub/Kairos103/deploy/kaggle_evaluator.py) | Script de Python para parsear datasets de Kaggle y generar `submission.csv`. |
-| [`deploy/COMPETITION_GUIDE.md`](file:///c:/Users/VANICA/Documents/GitHub/Kairos103/deploy/COMPETITION_GUIDE.md) | Guía detallada con enlaces y protocolos para cada plataforma externa. |
+| [`Dockerfile`](Dockerfile) | Contenedor multi-stage universal para compilar y ejecutar Kairos en cualquier entorno Linux. |
+| [`.dockerignore`](.dockerignore) | Filtro de archivos para compilaciones Docker rápidas y limpias. |
+| [`kaggle_evaluator.py`](kaggle_evaluator.py) | Script de Python (sin dependencias externas) para parsear datasets y generar `submission.csv`. |
+| [`COMPETITION_GUIDE.md`](COMPETITION_GUIDE.md) | Guía detallada con enlaces y protocolos para cada plataforma externa. |

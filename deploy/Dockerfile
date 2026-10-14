@@ -27,8 +27,8 @@ RUN dotnet publish src/Kairos103.Cli/Kairos103.Cli.csproj \
     --self-contained true \
     -o /app/publish
 
-# Stage 2: Runtime image (minimal Debian slim)
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-preview-noble-chiseled
+# Stage 2: Minimal runtime environment for Linux x64
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-preview
 WORKDIR /app
 
 COPY --from=builder /app/publish .

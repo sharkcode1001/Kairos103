@@ -2,9 +2,9 @@ name: Kairos103 CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
 
 jobs:
   build-and-test:
@@ -32,3 +32,23 @@ jobs:
 
     - name: Run Jitter Sweep
       run: dotnet run --project src/Kairos103.Cli --configuration Release -- jitter-sweep
+
+    - name: Validate Self-Contained Linux Publish
+      run: dotnet publish src/Kairos103.Cli/Kairos103.Cli.csproj -c Release -r linux-x64 --self-contained true -o ./publish-linux
+
+    - name: Smoke Test Published Binary
+      run: ./publish-linux/Kairos103.Cli --help
+
+  docker-build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build Docker Container
+      run: docker build -t kairos103-ci -f deploy/Dockerfile .
+
+    - name: Smoke Test Container Help
+      run: docker run --rm kairos103-ci --help
+
+    - name: Smoke Test Container Fast Benchmark
+      run: docker run --rm kairos103-ci benchmark --fast

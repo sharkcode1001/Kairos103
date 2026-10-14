@@ -107,7 +107,8 @@ def prepare_kaggle_input(input_csv, temp_csv):
         for idx, val in enumerate(first_data_row):
             if idx == id_col_idx:
                 continue
-            row_values.append(val.strip())
+            s = val.strip()
+            row_values.append(s if s and s.lower() not in ("nan", "null", "none") else "0.0")
 
         seq_len = len(row_values)
         print(f"[*] Detected sequence length: {seq_len} features per sample.")
@@ -126,7 +127,10 @@ def prepare_kaggle_input(input_csv, temp_csv):
         for row in reader:
             if not row or not any(row):
                 continue
-            vals = [val.strip() for idx, val in enumerate(row) if idx != id_col_idx]
+            def _c(v):
+                s = v.strip()
+                return s if s and s.lower() not in ("nan", "null", "none") else "0.0"
+            vals = [_c(val) for idx, val in enumerate(row) if idx != id_col_idx]
             sample_id = row[id_col_idx] if id_col_idx is not None else str(rows_written)
             ids.append(sample_id)
             writer.writerow([0, seq_len] + vals)

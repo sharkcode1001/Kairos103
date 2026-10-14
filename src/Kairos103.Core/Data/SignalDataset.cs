@@ -68,7 +68,8 @@ public static class SignalDataset
             double[] values = new double[parts.Length - 2];
             for (int i = 0; i < values.Length; i++)
             {
-                values[i] = double.Parse(parts[i + 2].Trim(), CultureInfo.InvariantCulture);
+                string p = parts[i + 2].Trim();
+                values[i] = double.TryParse(p, NumberStyles.Any, CultureInfo.InvariantCulture, out double v) ? v : 0.0;
             }
             return new SignalSample(label, values, length);
         }
@@ -78,7 +79,8 @@ public static class SignalDataset
             double[] values = new double[parts.Length - 1];
             for (int i = 0; i < values.Length; i++)
             {
-                values[i] = double.Parse(parts[i + 1].Trim(), CultureInfo.InvariantCulture);
+                string p = parts[i + 1].Trim();
+                values[i] = double.TryParse(p, NumberStyles.Any, CultureInfo.InvariantCulture, out double v) ? v : 0.0;
             }
             return new SignalSample(label, values, values.Length);
         }

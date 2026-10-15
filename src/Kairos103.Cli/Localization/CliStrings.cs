@@ -206,9 +206,9 @@ public static class CliStrings
               "  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10]\n" +
               "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]\n\n" +
               "  -- Kaggle ECG Competition (Macro F1) --\n" +
-              "  dotnet run --project src/Kairos103.Cli -- train-ecg --train <train.csv> --model <model.kairos> [--epochs 35] [--val-split 0.2]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- train-ecg --train <train.csv> --model <model.kairos> [--subregions 32] [--hidden 48] [--ovr] [--full-train] [--epochs 30] [--val-split 0.2] [--weight-power 0.5] [--no-baselines]\n" +
               "  dotnet run --project src/Kairos103.Cli -- validate-ecg --model <model.kairos> --train <train.csv> [--val-split 0.2]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv>"
+              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv> [--thresholds t0,t1,t2,t3]"
             : "Available usage:\n" +
               "  -- Language Configuration --\n" +
               "  dotnet run --project src/Kairos103.Cli -- --lang es|en [command]\n\n" +
@@ -222,7 +222,7 @@ public static class CliStrings
               "  dotnet run --project src/Kairos103.Cli -- jitter-sweep [--max-jitter-ms 50] [--step 10]\n" +
               "  dotnet run --project src/Kairos103.Cli -- export-plots [--output <path>] [--dataset synthetic|ecg] [--full]\n\n" +
               "  -- Kaggle ECG Competition (Macro F1) --\n" +
-              "  dotnet run --project src/Kairos103.Cli -- train-ecg --train <train.csv> --model <model.kairos> [--epochs 35] [--val-split 0.2]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- train-ecg --train <train.csv> --model <model.kairos> [--subregions 32] [--hidden 48] [--ovr] [--full-train] [--epochs 30] [--val-split 0.2] [--weight-power 0.5] [--no-baselines]\n" +
               "  dotnet run --project src/Kairos103.Cli -- validate-ecg --model <model.kairos> --train <train.csv> [--val-split 0.2]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv>";
+              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv> [--thresholds t0,t1,t2,t3]";
 }

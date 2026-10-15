@@ -338,6 +338,7 @@ public sealed class KairosClassifier
         int totalInputDim = _network.TotalFeatures + auxCount;
         _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
         _trainer = null;
+        Thresholds = Enumerable.Repeat(1.0, ClassCount).ToArray();
 
         Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features (OvR Architecture)...");
         Console.Out.Flush();
@@ -384,7 +385,7 @@ public sealed class KairosClassifier
             {
                 bestValF1 = epochResult.MacroF1;
                 bestResult = epochResult;
-                bestCheckpoint = CloneOvrTrainer(_ovrTrainer);
+                bestCheckpoint = _ovrTrainer.Clone();
             }
         }
 
@@ -447,23 +448,7 @@ public sealed class KairosClassifier
         _ovrTrainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, weightPower: weightPower);
         IsTrained = true;
 
-        Thresholds = defaultThresholds ?? [1.0, 1.0, 1.0, 1.0];
-    }
-
-    private static OvrTrainer CloneOvrTrainer(OvrTrainer src)
-    {
-        var clone = new OvrTrainer(src.ClassCount, src.FeatureDim, src.HiddenDim, src.Seed);
-        for (int c = 0; c < src.ClassCount; c++)
-        {
-            for (int j = 0; j < src.HiddenDim; j++)
-            {
-                Array.Copy(src.W1[c][j], clone.W1[c][j], src.FeatureDim);
-            }
-            Array.Copy(src.B1[c], clone.B1[c], src.HiddenDim);
-            Array.Copy(src.W2[c], clone.W2[c], src.HiddenDim);
-            clone.B2[c] = src.B2[c];
-        }
-        return clone;
+        Thresholds = defaultThresholds ?? [1.00, 1.00, 1.25, 1.00];
     }
 
     private List<(double[] Features, int Label)> EncodeSamples(

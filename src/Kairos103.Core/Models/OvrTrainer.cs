@@ -163,107 +163,41 @@ public sealed class OvrTrainer
             posWeights[c] = pos > 0 ? Math.Pow((double)neg / pos, weightPower) : 1.0;
         }
 
-        const double beta1 = 0.9;
-        const double beta2 = 0.999;
-        const double eps = 1e-8;
-
-        double[] h = new double[HiddenDim];
-        double[] deltaH = new double[HiddenDim];
-
         for (int ep = 0; ep < epochs; ep++)
         {
-            for (int i = 0; i < n; i++)
-            {
-                var (feats, label) = dataset[i];
-
-                for (int c = 0; c < ClassCount; c++)
-                {
-                    double wPos = posWeights[c];
-                    double target = (label == c) ? 1.0 : 0.0;
-
-                    // Forward
-                    double z = B2[c];
-                    var w2c = W2[c];
-                    var b1c = B1[c];
-                    var w1c = W1[c];
-
-                    for (int j = 0; j < HiddenDim; j++)
-                    {
-                        double sum = b1c[j];
-                        var w1cj = w1c[j];
-                        for (int f = 0; f < FeatureDim; f++)
-                        {
-                            sum += w1cj[f] * feats[f];
-                        }
-                        h[j] = sum > 0.0 ? sum : 0.0;
-                        z += w2c[j] * h[j];
-                    }
-
-                    double p = Sigmoid(z);
-
-                    // Binary Cross Entropy Gradient
-                    double gradZ = (target > 0.5) ? wPos * (p - 1.0) : p;
-
-                    // Backprop hidden
-                    for (int j = 0; j < HiddenDim; j++)
-                    {
-                        deltaH[j] = (h[j] > 0.0) ? gradZ * w2c[j] : 0.0;
-                    }
-
-                    // Adam step for head c
-                    _adamStep[c]++;
-                    int step = _adamStep[c];
-                    double b1Corr = 1.0 - Math.Pow(beta1, step);
-                    double b2Corr = 1.0 - Math.Pow(beta2, step);
-                    double alpha = lr * Math.Sqrt(b2Corr) / Math.Max(1e-8, b1Corr);
-
-                    // Update W2 and B2
-                    double mB2Val = beta1 * _mB2[c] + (1.0 - beta1) * gradZ;
-                    double vB2Val = beta2 * _vB2[c] + (1.0 - beta2) * gradZ * gradZ;
-                    _mB2[c] = mB2Val;
-                    _vB2[c] = vB2Val;
-                    B2[c] -= alpha * mB2Val / (Math.Sqrt(vB2Val) + eps);
-
-                    var mW2c = _mW2[c];
-                    var vW2c = _vW2[c];
-                    for (int j = 0; j < HiddenDim; j++)
-                    {
-                        double gW2 = gradZ * h[j];
-                        mW2c[j] = beta1 * mW2c[j] + (1.0 - beta1) * gW2;
-                        vW2c[j] = beta2 * vW2c[j] + (1.0 - beta2) * gW2 * gW2;
-                        w2c[j] -= alpha * mW2c[j] / (Math.Sqrt(vW2c[j]) + eps);
-                    }
-
-                    // Update W1 and B1
-                    var mB1c = _mB1[c];
-                    var vB1c = _vB1[c];
-                    var mW1c = _mW1[c];
-                    var vW1c = _vW1[c];
-                    for (int j = 0; j < HiddenDim; j++)
-                    {
-                        double dH = deltaH[j];
-                        mB1c[j] = beta1 * mB1c[j] + (1.0 - beta1) * dH;
-                        vB1c[j] = beta2 * vB1c[j] + (1.0 - beta2) * dH * dH;
-                        b1c[j] -= alpha * mB1c[j] / (Math.Sqrt(vB1c[j]) + eps);
-
-                        if (Math.Abs(dH) < 1e-12) continue;
-
-                        var w1cj = w1c[j];
-                        var mW1cj = mW1c[j];
-                        var vW1cj = vW1c[j];
-                        for (int f = 0; f < FeatureDim; f++)
-                        {
-                            double gW1 = dH * feats[f];
-                            mW1cj[f] = beta1 * mW1cj[f] + (1.0 - beta1) * gW1;
-                            vW1cj[f] = beta2 * vW1cj[f] + (1.0 - beta2) * gW1 * gW1;
-                            w1cj[f] -= alpha * mW1cj[f] / (Math.Sqrt(vW1cj[f]) + eps);
-                        }
-                    }
-                }
-            }
-
+            TrainEpoch(dataset, posWeights, lr);
             onProgress?.Invoke(ep + 1, epochs);
         }
+    }
+
+    /// <summary>
+    /// Deep-clones the OvrTrainer including learned weights and all Adam optimizer first/second moments.
+    /// </summary>
+    public OvrTrainer Clone()
+    {
+        var clone = new OvrTrainer(ClassCount, FeatureDim, HiddenDim, Seed);
+        for (int c = 0; c < ClassCount; c++)
+        {
+            for (int j = 0; j < HiddenDim; j++)
+            {
+                Array.Copy(W1[c][j], clone.W1[c][j], FeatureDim);
+                Array.Copy(_mW1[c][j], clone._mW1[c][j], FeatureDim);
+                Array.Copy(_vW1[c][j], clone._vW1[c][j], FeatureDim);
+            }
+            Array.Copy(B1[c], clone.B1[c], HiddenDim);
+            Array.Copy(_mB1[c], clone._mB1[c], HiddenDim);
+            Array.Copy(_vB1[c], clone._vB1[c], HiddenDim);
+
+            Array.Copy(W2[c], clone.W2[c], HiddenDim);
+            Array.Copy(_mW2[c], clone._mW2[c], HiddenDim);
+            Array.Copy(_vW2[c], clone._vW2[c], HiddenDim);
+
+            clone.B2[c] = B2[c];
+            clone._mB2[c] = _mB2[c];
+            clone._vB2[c] = _vB2[c];
+            clone._adamStep[c] = _adamStep[c];
+        }
+        return clone;
     }
 
     /// <summary>

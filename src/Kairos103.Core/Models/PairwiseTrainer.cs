@@ -205,21 +205,12 @@ public sealed class PairwiseTrainer
                     sumExp += exp;
                 }
                 double invSum = 1.0 / Math.Max(1e-12, sumExp);
+                double sampleWeight = (classWeights != null && label >= 0 && label < classWeights.Length) ? classWeights[label] : 1.0;
                 for (int c = 0; c < ClassCount; c++)
                 {
                     probs[c] *= invSum;
-                }
-
-                // Focal Loss modulation: suppresses gradient for easily classified majority samples (1 - p_t)^gamma
-                double pTarget = (label >= 0 && label < ClassCount) ? probs[label] : 0.25;
-                double focalModulator = Math.Pow(Math.Max(0.01, 1.0 - pTarget), 1.5);
-                double sampleWeight = (classWeights != null && label >= 0 && label < classWeights.Length) ? classWeights[label] : 1.0;
-                double effectiveWeight = sampleWeight * focalModulator;
-
-                for (int c = 0; c < ClassCount; c++)
-                {
                     double target = (c == label ? 1.0 : 0.0);
-                    grad2[c] = effectiveWeight * (probs[c] - target);
+                    grad2[c] = sampleWeight * (probs[c] - target);
                 }
 
                 // Backprop to hidden layer

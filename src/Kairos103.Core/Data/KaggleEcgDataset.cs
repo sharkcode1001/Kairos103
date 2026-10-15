@@ -56,9 +56,9 @@ public sealed record KaggleEcgSample(
         // Aux 3..8: Dimensionless relative morphology and rhythm metrics (invariant to patient anatomy)
         double totalEnergy = waveLen > 0 ? totalSq / waveLen : 0.0;
 
-        // QRS zone: samples 90 to 160 (ventricular depolarization window)
-        int qrsStart = Math.Min(90, Math.Max(0, waveLen - 1));
-        int qrsEnd = Math.Min(160, waveLen);
+        // QRS zone: samples 85 to 165 (ventricular depolarization window protected from edge noise)
+        int qrsStart = Math.Min(85, Math.Max(0, waveLen - 1));
+        int qrsEnd = Math.Min(165, waveLen);
         double qrsMax = double.NegativeInfinity, qrsMin = double.PositiveInfinity;
         double qrsSq = 0.0;
         double qrsAbsMax = 0.0;
@@ -67,11 +67,15 @@ public sealed record KaggleEcgSample(
         for (int i = qrsStart; i < qrsEnd; i++)
         {
             double v = Waveform[i];
-            if (v > qrsMax) { qrsMax = v; peakIdx = i; }
+            if (v > qrsMax) qrsMax = v;
             if (v < qrsMin) qrsMin = v;
             qrsSq += v * v;
             double absV = Math.Abs(v);
-            if (absV > qrsAbsMax) qrsAbsMax = absV;
+            if (absV > qrsAbsMax)
+            {
+                qrsAbsMax = absV;
+                peakIdx = i; // Accurately captures depolarization peak for both positive R and negative QS waves
+            }
         }
 
         double qrsP2p = (qrsMax > qrsMin) ? qrsMax - qrsMin : 0.0;

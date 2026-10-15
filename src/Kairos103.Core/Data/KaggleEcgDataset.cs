@@ -31,21 +31,12 @@ public sealed record KaggleEcgSample(
         // 1. Per-beat min-max waveform normalization: makes LIF spike dynamics strictly patient-independent
         double maxVal = double.NegativeInfinity, minVal = double.PositiveInfinity;
         double totalSq = 0.0;
-        double globalAbsMax = 0.0;
-        int globalPeakIdx = waveLen / 2;
-
         for (int i = 0; i < waveLen; i++)
         {
             double v = Waveform[i];
             if (v > maxVal) maxVal = v;
             if (v < minVal) minVal = v;
             totalSq += v * v;
-            double absV = Math.Abs(v);
-            if (absV > globalAbsMax)
-            {
-                globalAbsMax = absV;
-                globalPeakIdx = i;
-            }
         }
 
         double p2p = (maxVal > minVal) ? maxVal - minVal : 0.0;
@@ -57,36 +48,30 @@ public sealed record KaggleEcgSample(
             combined[i] = (Waveform[i] - offset) * invP2p;
         }
 
-        // Aux 0..2: Dimensionless relative rhythm features (invariant to resting heart rate)
-        double meanRr = (PreRr + PostRr) > 1e-4 ? 0.5 * (PreRr + PostRr) : 1.0;
-        combined[WaveformLength] = PreRr / meanRr;
-        combined[WaveformLength + 1] = PostRr / meanRr;
+        // Aux 0..2: Rhythm features
+        combined[WaveformLength] = PreRr;
+        combined[WaveformLength + 1] = PostRr;
         combined[WaveformLength + 2] = RrRatio;
 
         // Aux 3..8: Dimensionless relative morphology and rhythm metrics (invariant to patient anatomy)
         double totalEnergy = waveLen > 0 ? totalSq / waveLen : 0.0;
 
-        // Dynamic QRS depolarization zone: centered around real depolarization peak (handles shifted or negative QS peaks)
-        int qrsHalfWidth = 35;
-        int qrsStart = Math.Max(0, globalPeakIdx - qrsHalfWidth);
-        int qrsEnd = Math.Min(waveLen, globalPeakIdx + qrsHalfWidth + 1);
+        // QRS zone: samples 90 to 160 (ventricular depolarization window)
+        int qrsStart = Math.Min(90, Math.Max(0, waveLen - 1));
+        int qrsEnd = Math.Min(160, waveLen);
         double qrsMax = double.NegativeInfinity, qrsMin = double.PositiveInfinity;
         double qrsSq = 0.0;
         double qrsAbsMax = 0.0;
-        int qrsPeakIdx = globalPeakIdx;
+        int peakIdx = qrsStart;
 
         for (int i = qrsStart; i < qrsEnd; i++)
         {
             double v = Waveform[i];
-            if (v > qrsMax) qrsMax = v;
+            if (v > qrsMax) { qrsMax = v; peakIdx = i; }
             if (v < qrsMin) qrsMin = v;
             qrsSq += v * v;
             double absV = Math.Abs(v);
-            if (absV > qrsAbsMax)
-            {
-                qrsAbsMax = absV;
-                qrsPeakIdx = i;
-            }
+            if (absV > qrsAbsMax) qrsAbsMax = absV;
         }
 
         double qrsP2p = (qrsMax > qrsMin) ? qrsMax - qrsMin : 0.0;
@@ -110,7 +95,7 @@ public sealed record KaggleEcgSample(
         double relQrsEnergy = totalEnergy > 1e-6 ? Math.Clamp(qrsEnergy / totalEnergy, 0.0, 1.0) : 0.0;
         double relQrsP2p = p2p > 1e-6 ? Math.Clamp(qrsP2p / p2p, 0.0, 1.0) : 0.0;
         double relQrsWidth = Math.Clamp(qrsWidthCount / 25.0, 0.0, 1.0);
-        double qrsAsymmetry = (qrsEnd > qrsStart) ? (double)(qrsPeakIdx - qrsStart) / (qrsEnd - qrsStart) : 0.5;
+        double qrsAsymmetry = (qrsEnd > qrsStart) ? (double)(peakIdx - qrsStart) / (qrsEnd - qrsStart) : 0.5;
 
         combined[WaveformLength + 3] = prematurityIndex;
         combined[WaveformLength + 4] = compensatoryPause;

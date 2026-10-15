@@ -210,10 +210,10 @@ public sealed class KairosClassifier
         double bestMacroF1 = baseRes.MacroF1;
         double[] bestThresh = (double[])Thresholds.Clone();
 
-        double[] candidates = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0];
+        double[] candidates = [0.08, 0.12, 0.18, 0.25, 0.32, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0, 1.25, 1.50, 1.80, 2.20, 2.60, 3.0, 3.5];
 
         // Coordinate search over class thresholds
-        for (int iter = 0; iter < 3; iter++)
+        for (int iter = 0; iter < 4; iter++)
         {
             for (int c = 0; c < ClassCount; c++)
             {

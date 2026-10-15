@@ -10,7 +10,8 @@ public static class PredictKaggleCommand
         string modelPath,
         string testPath,
         string outputPath,
-        string? sampleSubmissionPath = null)
+        string? sampleSubmissionPath = null,
+        double[]? customThresholds = null)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("          KAIROS103 - KAGGLE SUBMISSION GENERATOR                         ");
@@ -31,6 +32,16 @@ public static class PredictKaggleCommand
         Console.WriteLine($"Loading model from: {modelPath}...");
         var classifier = KairosClassifier.Load(modelPath);
         Console.WriteLine($"  Loaded Kairos103 model (Subregions: {classifier.SubregionCount}, Classes: {classifier.ClassCount}, Readout Dim: {classifier.HiddenDim})");
+
+        if (customThresholds != null && customThresholds.Length == classifier.ClassCount)
+        {
+            classifier.Thresholds = customThresholds;
+            Console.WriteLine($"  Overriding decision thresholds with user-specified: [{string.Join(", ", classifier.Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+        }
+        else if (classifier.Thresholds != null && classifier.Thresholds.Length == classifier.ClassCount)
+        {
+            Console.WriteLine($"  Applying model-calibrated decision thresholds: [{string.Join(", ", classifier.Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+        }
 
         Console.WriteLine($"Loading test dataset from: {testPath}...");
         var sw = Stopwatch.StartNew();

@@ -520,6 +520,7 @@ switch (command)
         string testPath = "";
         string sampleSubPath = "";
         string outputPath = "submission.csv";
+        double[]? customThresholds = null;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -531,6 +532,11 @@ switch (command)
                 sampleSubPath = args[++i];
             else if ((args[i] == "--output" || args[i] == "-o") && i + 1 < args.Length)
                 outputPath = args[++i];
+            else if (args[i] == "--thresholds" && i + 1 < args.Length)
+            {
+                string tStr = args[++i];
+                customThresholds = tStr.Split(',').Select(s => double.Parse(s.Trim(), System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            }
         }
 
         if (string.IsNullOrEmpty(modelPath) || string.IsNullOrEmpty(testPath))
@@ -539,7 +545,7 @@ switch (command)
             break;
         }
 
-        PredictKaggleCommand.Execute(modelPath, testPath, outputPath, sampleSubPath);
+        PredictKaggleCommand.Execute(modelPath, testPath, outputPath, sampleSubPath, customThresholds);
         break;
     }
 

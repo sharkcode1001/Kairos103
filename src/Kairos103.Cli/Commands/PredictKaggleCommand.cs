@@ -57,8 +57,16 @@ public static class PredictKaggleCommand
         var predictions = new int[testSamples.Count];
         int[] classTally = new int[4];
 
+        int predReportStep = Math.Max(1000, testSamples.Count / 10);
         for (int i = 0; i < testSamples.Count; i++)
         {
+            if (testSamples.Count >= 2000 && (i % predReportStep == 0 || i == testSamples.Count - 1))
+            {
+                double pct = (double)(i + 1) / testSamples.Count * 100.0;
+                Console.WriteLine($"  [Inference] Processed {i + 1:N0} / {testSamples.Count:N0} test samples ({pct:F1}%)...");
+                Console.Out.Flush();
+            }
+
             var s = testSamples[i];
             int pred = classifier.Predict(s.ToCombinedSignal(), effectiveLength: KaggleEcgSample.WaveformLength);
             if (pred < 0 || pred > 3)
@@ -69,6 +77,7 @@ public static class PredictKaggleCommand
             classTally[pred]++;
         }
         sw.Stop();
+        Console.Out.Flush();
 
         Console.WriteLine($"Inference finished in {sw.ElapsedMilliseconds} ms ({(double)sw.ElapsedMilliseconds / testSamples.Count * 1000.0:F2} µs/sample).");
 

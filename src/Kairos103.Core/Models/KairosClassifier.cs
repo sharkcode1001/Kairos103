@@ -125,8 +125,13 @@ public sealed class KairosClassifier
         int totalInputDim = _network.TotalFeatures + auxCount;
         _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
 
-        var encodedTrain = EncodeSamples(trainSamples, auxCount, totalInputDim);
-        var encodedVal = EncodeSamples(valSamples, auxCount, totalInputDim);
+        Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features...");
+        Console.Out.Flush();
+        var encodedTrain = EncodeSamples(trainSamples, auxCount, totalInputDim, "train");
+        var encodedVal = EncodeSamples(valSamples, auxCount, totalInputDim, "val");
+        Console.WriteLine($"[1/2] Feature extraction complete. Feature vector dimension: {totalInputDim}\n");
+        Console.WriteLine($"[2/2] Training readout layer ({epochs} epochs, Adam optimizer)...");
+        Console.Out.Flush();
 
         var valActuals = valSamples.Select(s => s.Label).ToArray();
         var valPreds = new int[valSamples.Count];
@@ -159,6 +164,7 @@ public sealed class KairosClassifier
             }
 
             onEpochCompleted?.Invoke(ep + 1, epochs, valAcc, currentMetrics.MacroF1);
+            Console.Out.Flush();
         }
 
         if (bestTrainer != null)
@@ -173,11 +179,21 @@ public sealed class KairosClassifier
     private List<(double[] Features, int Label)> EncodeSamples(
         IReadOnlyList<SignalSample> samples,
         int auxCount,
-        int totalInputDim)
+        int totalInputDim,
+        string phaseName = "signals")
     {
         var encoded = new List<(double[] Features, int Label)>(samples.Count);
+        int reportStep = Math.Max(1000, samples.Count / 10);
+
         for (int i = 0; i < samples.Count; i++)
         {
+            if (samples.Count >= 2000 && (i % reportStep == 0 || i == samples.Count - 1))
+            {
+                double pct = (double)(i + 1) / samples.Count * 100.0;
+                Console.WriteLine($"  [Feature Extraction: {phaseName}] Processed {i + 1:N0} / {samples.Count:N0} ({pct:F1}%)...");
+                Console.Out.Flush();
+            }
+
             var s = samples[i];
             var (feats, _) = _network.Forward(s.Values, s.EffectiveLength);
 

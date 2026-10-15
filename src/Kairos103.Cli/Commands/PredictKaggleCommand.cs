@@ -17,10 +17,25 @@ public static class PredictKaggleCommand
         Console.WriteLine("          KAIROS103 - KAGGLE SUBMISSION GENERATOR                         ");
         Console.WriteLine("==========================================================================");
 
-        if (!File.Exists(modelPath))
+        string[] modelFiles = modelPath.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (modelFiles.Length == 0)
         {
-            Console.WriteLine($"[ERROR] Model file not found: {modelPath}");
+            Console.WriteLine($"[ERROR] No valid model paths specified: {modelPath}");
             return;
+        }
+
+        var classifiers = new List<KairosClassifier>();
+        foreach (var file in modelFiles)
+        {
+            if (!File.Exists(file))
+            {
+                Console.WriteLine($"[ERROR] Model file not found: {file}");
+                return;
+            }
+            Console.WriteLine($"Loading model from: {file}...");
+            var c = KairosClassifier.Load(file);
+            Console.WriteLine($"  Loaded Kairos103 model (Subregions: {c.SubregionCount}, Classes: {c.ClassCount}, Readout Dim: {c.HiddenDim})");
+            classifiers.Add(c);
         }
 
         if (!File.Exists(testPath))
@@ -29,18 +44,21 @@ public static class PredictKaggleCommand
             return;
         }
 
-        Console.WriteLine($"Loading model from: {modelPath}...");
-        var classifier = KairosClassifier.Load(modelPath);
-        Console.WriteLine($"  Loaded Kairos103 model (Subregions: {classifier.SubregionCount}, Classes: {classifier.ClassCount}, Readout Dim: {classifier.HiddenDim})");
-
-        if (customThresholds != null && customThresholds.Length == classifier.ClassCount)
+        double[] activeThresholds;
+        if (customThresholds != null && customThresholds.Length == classifiers[0].ClassCount)
         {
-            classifier.Thresholds = customThresholds;
-            Console.WriteLine($"  Overriding decision thresholds with user-specified: [{string.Join(", ", classifier.Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+            activeThresholds = customThresholds;
+            Console.WriteLine($"  Overriding decision thresholds with user-specified: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
         }
-        else if (classifier.Thresholds != null && classifier.Thresholds.Length == classifier.ClassCount)
+        else if (classifiers[0].Thresholds != null && classifiers[0].Thresholds.Length == classifiers[0].ClassCount)
         {
-            Console.WriteLine($"  Applying model-calibrated decision thresholds: [{string.Join(", ", classifier.Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+            activeThresholds = classifiers[0].Thresholds;
+            Console.WriteLine($"  Applying model-calibrated decision thresholds: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+        }
+        else
+        {
+            activeThresholds = [1.00, 1.00, 1.25, 1.00];
+            Console.WriteLine($"  Applying default decision thresholds: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
         }
 
         Console.WriteLine($"Loading test dataset from: {testPath}...");
@@ -63,12 +81,21 @@ public static class PredictKaggleCommand
         }
 
         // Run batch inference
-        Console.WriteLine("\nRunning neuromorphic inference...");
+        if (classifiers.Count > 1)
+        {
+            Console.WriteLine($"\nRunning neuromorphic ensemble inference across {classifiers.Count} models...");
+        }
+        else
+        {
+            Console.WriteLine("\nRunning neuromorphic inference...");
+        }
+
         sw.Restart();
         var predictions = new int[testSamples.Count];
         int[] classTally = new int[4];
-
+        double[] ensembleProbs = new double[4];
         int predReportStep = Math.Max(1000, testSamples.Count / 10);
+
         for (int i = 0; i < testSamples.Count; i++)
         {
             if (testSamples.Count >= 2000 && (i % predReportStep == 0 || i == testSamples.Count - 1))
@@ -79,7 +106,39 @@ public static class PredictKaggleCommand
             }
 
             var s = testSamples[i];
-            int pred = classifier.Predict(s.ToCombinedSignal(), effectiveLength: KaggleEcgSample.WaveformLength);
+            var combinedSignal = s.ToCombinedSignal();
+
+            int pred;
+            if (classifiers.Count == 1)
+            {
+                pred = classifiers[0].Predict(combinedSignal, effectiveLength: KaggleEcgSample.WaveformLength);
+            }
+            else
+            {
+                Array.Clear(ensembleProbs, 0, 4);
+                for (int m = 0; m < classifiers.Count; m++)
+                {
+                    double[] probs = classifiers[m].PredictProbabilities(combinedSignal, effectiveLength: KaggleEcgSample.WaveformLength);
+                    for (int c = 0; c < 4; c++)
+                    {
+                        ensembleProbs[c] += probs[c];
+                    }
+                }
+
+                int best = 0;
+                double bestScore = ensembleProbs[0] / Math.Max(1e-4, activeThresholds[0]);
+                for (int c = 1; c < 4; c++)
+                {
+                    double score = ensembleProbs[c] / Math.Max(1e-4, activeThresholds[c]);
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        best = c;
+                    }
+                }
+                pred = best;
+            }
+
             if (pred < 0 || pred > 3)
             {
                 throw new InvalidOperationException($"Predicted label {pred} at sample index {i} is out of bounds (must be 0, 1, 2, or 3).");

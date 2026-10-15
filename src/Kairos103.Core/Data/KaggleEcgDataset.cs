@@ -48,12 +48,10 @@ public sealed record KaggleEcgSample(
             combined[i] = (Waveform[i] - offset) * invP2p;
         }
 
-        // Aux 0..2: Dimensionless rhythm features invariant to patient baseline heart rate
-        double meanRr = (PreRr + PostRr) * 0.5;
-        double invMeanRr = meanRr > 1e-4 ? 1.0 / meanRr : 1.0;
-        combined[WaveformLength] = PreRr * invMeanRr;        // Relative pre-RR ratio (~1.0 for normal, < 0.8 for premature)
-        combined[WaveformLength + 1] = PostRr * invMeanRr;    // Relative post-RR ratio (~1.0 for normal, > 1.2 for compensatory pause)
-        combined[WaveformLength + 2] = RrRatio;              // Pre-to-Post ratio
+        // Aux 0..2: Rhythm features
+        combined[WaveformLength] = PreRr;
+        combined[WaveformLength + 1] = PostRr;
+        combined[WaveformLength + 2] = RrRatio;
 
         // Aux 3..8: Dimensionless relative morphology and rhythm metrics (invariant to patient anatomy)
         double totalEnergy = waveLen > 0 ? totalSq / waveLen : 0.0;

@@ -18,7 +18,8 @@ public static class TrainEcgCommand
         double valSplit = 0.2,
         int seed = 42,
         bool useClassWeights = true,
-        bool runBaselines = true)
+        bool runBaselines = true,
+        double weightPower = 0.5)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("          KAIROS103 - KAGGLE ECG ARRHYTHMIA TRAINING PIPELINE             ");
@@ -90,8 +91,8 @@ public static class TrainEcgCommand
         double[]? classWeights = null;
         if (useClassWeights)
         {
-            classWeights = KaggleEcgDataset.ComputeBalancedClassWeights(trainSamples, 4);
-            Console.WriteLine("\nBalanced Class Loss Weights:");
+            classWeights = KaggleEcgDataset.ComputeBalancedClassWeights(trainSamples, 4, weightPower);
+            Console.WriteLine($"\nBalanced Class Loss Weights (Power: {weightPower:F2}):");
             for (int c = 0; c < 4; c++)
             {
                 Console.WriteLine($"  Class {c}: {classWeights[c]:F3}");

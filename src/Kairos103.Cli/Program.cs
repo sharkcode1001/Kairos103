@@ -444,6 +444,7 @@ switch (command)
         int seed = 42;
         bool classWeights = true;
         bool baselines = true;
+        double weightPower = 0.5;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -463,6 +464,8 @@ switch (command)
                 valSplit = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
             else if (args[i] == "--seed" && i + 1 < args.Length)
                 seed = int.Parse(args[++i]);
+            else if (args[i] == "--weight-power" && i + 1 < args.Length)
+                weightPower = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
             else if (args[i] == "--no-class-weights")
                 classWeights = false;
             else if (args[i] == "--no-baselines")
@@ -475,7 +478,7 @@ switch (command)
             break;
         }
 
-        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines);
+        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower);
         break;
     }
 

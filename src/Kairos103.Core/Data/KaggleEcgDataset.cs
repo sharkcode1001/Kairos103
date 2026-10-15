@@ -136,9 +136,10 @@ public static class KaggleEcgDataset
 
     /// <summary>
     /// Computes balanced class weights inversely proportional to class frequencies:
-    /// w_c = N / (C * N_c)
+    /// w_c = (N / (C * N_c))^power
+    /// power=1.0 is exact inverse frequency; power=0.5 (default) is smoothed square-root inverse frequency to prevent rare class over-prediction.
     /// </summary>
-    public static double[] ComputeBalancedClassWeights(IReadOnlyList<KaggleEcgSample> samples, int classCount = 4)
+    public static double[] ComputeBalancedClassWeights(IReadOnlyList<KaggleEcgSample> samples, int classCount = 4, double power = 0.5)
     {
         int[] counts = new int[classCount];
         int total = 0;
@@ -156,7 +157,8 @@ public static class KaggleEcgDataset
         {
             if (counts[c] > 0)
             {
-                weights[c] = (double)total / (classCount * counts[c]);
+                double raw = (double)total / (classCount * counts[c]);
+                weights[c] = Math.Pow(raw, power);
             }
             else
             {

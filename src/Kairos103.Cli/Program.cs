@@ -463,6 +463,8 @@ switch (command)
                 subregions = int.Parse(args[++i]);
             else if (args[i] == "--val-split" && i + 1 < args.Length)
                 valSplit = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+            else if (args[i] == "--full-train")
+                valSplit = 0.0;
             else if (args[i] == "--seed" && i + 1 < args.Length)
                 seed = int.Parse(args[++i]);
             else if (args[i] == "--weight-power" && i + 1 < args.Length)

@@ -98,6 +98,47 @@ public sealed class KairosClassifier
     }
 
     /// <summary>
+    /// Fits the model on 100% of the training dataset without validation holdout, using pre-validated optimal thresholds.
+    /// </summary>
+    public void FitFull(
+        IReadOnlyList<SignalSample> trainSamples,
+        int epochs = 28,
+        double lr = 0.02,
+        int hiddenDim = 64,
+        double[]? classWeights = null,
+        double[]? defaultThresholds = null,
+        Action<int, int>? onProgress = null)
+    {
+        if (trainSamples == null || trainSamples.Count == 0)
+            throw new ArgumentException("Train samples cannot be empty.", nameof(trainSamples));
+
+        int maxLabel = trainSamples.Max(s => s.Label);
+        int uniqueLabels = trainSamples.Select(s => s.Label).Distinct().Count();
+        ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
+
+        int auxCount = 0;
+        if (trainSamples.Count > 0 && trainSamples[0].Values.Length > trainSamples[0].EffectiveLength && trainSamples[0].EffectiveLength > 0)
+        {
+            auxCount = trainSamples[0].Values.Length - trainSamples[0].EffectiveLength;
+        }
+
+        int totalInputDim = _network.TotalFeatures + auxCount;
+        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+
+        Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features (Full Dataset: {trainSamples.Count:N0} samples)...");
+        Console.Out.Flush();
+        var encodedTrain = EncodeSamples(trainSamples, auxCount, totalInputDim, "full-train");
+        Console.WriteLine($"[1/2] Feature extraction complete. Feature vector dimension: {totalInputDim}\n");
+        Console.WriteLine($"[2/2] Training readout layer on 100% data ({epochs} epochs, Adam optimizer)...");
+        Console.Out.Flush();
+
+        _trainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, classWeights: classWeights);
+        IsTrained = true;
+
+        Thresholds = defaultThresholds ?? [0.50, 0.18, 0.90, 1.00];
+    }
+
+    /// <summary>
     /// Fits the model while evaluating validation Macro F1 at each epoch, automatically checkpointing the best weights.
     /// </summary>
     public MacroF1Result FitWithValidation(

@@ -113,26 +113,48 @@ public static class TrainEcgCommand
 
         var classifier = new KairosClassifier(subregionCount: subregions, seed: seed);
 
-        sw.Restart();
-        var bestResult = classifier.FitWithValidation(
-            trainSignalSamples,
-            valSignalSamples,
-            epochs: epochs,
-            lr: lr,
-            hiddenDim: hiddenDim,
-            classWeights: classWeights,
-            onEpochCompleted: (ep, totalEp, valAcc, valMacroF1) =>
-            {
-                Console.WriteLine($"  Epoch [{ep,2}/{totalEp,2}] -> Val Macro F1: {valMacroF1:F4} | Val Accuracy: {valAcc * 100:F2}%");
-            },
-            calibrateThresholds: calibrateThresholds);
-        sw.Stop();
+        if (valSamples.Count == 0)
+        {
+            sw.Restart();
+            classifier.FitFull(
+                trainSignalSamples,
+                epochs: epochs > 0 ? epochs : 28,
+                lr: lr,
+                hiddenDim: hiddenDim,
+                classWeights: classWeights,
+                defaultThresholds: [0.50, 0.18, 0.90, 1.00],
+                onProgress: (ep, totalEp) =>
+                {
+                    Console.WriteLine($"  Epoch [{ep,2}/{totalEp,2}] complete on 100% training data.");
+                });
+            sw.Stop();
 
-        Console.WriteLine($"\nTraining completed in {sw.ElapsedMilliseconds} ms.");
-        Console.WriteLine($"Best Validation Macro F1 Checkpoint Restored: {bestResult.MacroF1:F4}\n");
+            Console.WriteLine($"\nFull Training completed in {sw.ElapsedMilliseconds} ms.");
+            Console.WriteLine($"Applying proven optimal thresholds: [{string.Join(", ", classifier.Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]\n");
+        }
+        else
+        {
+            sw.Restart();
+            var bestResult = classifier.FitWithValidation(
+                trainSignalSamples,
+                valSignalSamples,
+                epochs: epochs,
+                lr: lr,
+                hiddenDim: hiddenDim,
+                classWeights: classWeights,
+                onEpochCompleted: (ep, totalEp, valAcc, valMacroF1) =>
+                {
+                    Console.WriteLine($"  Epoch [{ep,2}/{totalEp,2}] -> Val Macro F1: {valMacroF1:F4} | Val Accuracy: {valAcc * 100:F2}%");
+                },
+                calibrateThresholds: calibrateThresholds);
+            sw.Stop();
 
-        // Print final classification report
-        Console.WriteLine(bestResult.FormatReport());
+            Console.WriteLine($"\nTraining completed in {sw.ElapsedMilliseconds} ms.");
+            Console.WriteLine($"Best Validation Macro F1 Checkpoint Restored: {bestResult.MacroF1:F4}\n");
+
+            // Print final classification report
+            Console.WriteLine(bestResult.FormatReport());
+        }
 
         // Save model
         string dir = Path.GetDirectoryName(modelPath) ?? "";

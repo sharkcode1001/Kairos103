@@ -181,7 +181,14 @@ public static class KaggleEcgDataset
         double valFraction = 0.2,
         int seed = 42)
     {
-        if (valFraction <= 0.0 || valFraction >= 1.0)
+        if (valFraction <= 0.0)
+        {
+            var all = samples.ToList();
+            Shuffle(all, new Random(seed));
+            return (all, new List<KaggleEcgSample>());
+        }
+
+        if (valFraction >= 1.0)
             throw new ArgumentOutOfRangeException(nameof(valFraction), "Validation fraction must be between 0 and 1.");
 
         var groups = samples.GroupBy(s => s.Label).ToDictionary(g => g.Key, g => g.ToList());

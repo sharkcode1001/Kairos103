@@ -35,6 +35,7 @@ public sealed class KairosModelMetadata
     public double[] B1 { get; set; } = [];
     public double[][] W2 { get; set; } = [];
     public double[] B2 { get; set; } = [];
+    public double[] Thresholds { get; set; } = [];
 }
 
 /// <summary>
@@ -47,6 +48,7 @@ public sealed class KairosClassifier
     public int Seed { get; private set; }
     public int ClassCount { get; private set; }
     public bool IsTrained { get; private set; }
+    public double[] Thresholds { get; set; } = [];
 
     public int TotalNeurons => _network?.TotalNeurons ?? (SubregionCount * 4);
     public int TotalFeatures => _trainer?.FeatureDim ?? _network?.TotalFeatures ?? (SubregionCount * 24);
@@ -105,7 +107,8 @@ public sealed class KairosClassifier
         double lr = 0.02,
         int hiddenDim = 32,
         double[]? classWeights = null,
-        Action<int, int, double, double>? onEpochCompleted = null)
+        Action<int, int, double, double>? onEpochCompleted = null,
+        bool calibrateThresholds = true)
     {
         if (trainSamples == null || trainSamples.Count == 0)
             throw new ArgumentException("Train samples cannot be empty.", nameof(trainSamples));
@@ -173,7 +176,85 @@ public sealed class KairosClassifier
         }
 
         IsTrained = true;
+
+        if (calibrateThresholds && encodedVal.Count > 0)
+        {
+            Console.WriteLine("\n[3/3] Calibrating decision thresholds on validation fold to maximize Macro F1...");
+            var calResult = CalibrateThresholds(encodedVal);
+            Console.WriteLine($"  Optimal Thresholds: [{string.Join(", ", Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+            Console.WriteLine($"  Calibrated Validation Macro F1: {calResult.MacroF1:F4} (Accuracy: {calResult.Accuracy * 100:F2}%)\n");
+            Console.Out.Flush();
+            return calResult;
+        }
+
         return bestResult ?? MacroF1Metrics.Compute(valActuals, valPreds, ClassCount);
+    }
+
+    /// <summary>
+    /// Calibrates class decision thresholds on validation probabilities using coordinate search to maximize Macro F1.
+    /// </summary>
+    public MacroF1Result CalibrateThresholds(IReadOnlyList<(double[] Features, int Label)> valEncoded)
+    {
+        EnsureTrained();
+        int n = valEncoded.Count;
+        double[][] probs = new double[n][];
+        int[] actuals = new int[n];
+        for (int i = 0; i < n; i++)
+        {
+            probs[i] = _trainer!.PredictProbabilities(valEncoded[i].Features);
+            actuals[i] = valEncoded[i].Label;
+        }
+
+        Thresholds = Enumerable.Repeat(1.0, ClassCount).ToArray();
+        var baseRes = EvaluateWithThresholds(probs, actuals, Thresholds);
+        double bestMacroF1 = baseRes.MacroF1;
+        double[] bestThresh = (double[])Thresholds.Clone();
+
+        double[] candidates = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0];
+
+        // Coordinate search over class thresholds
+        for (int iter = 0; iter < 3; iter++)
+        {
+            for (int c = 0; c < ClassCount; c++)
+            {
+                double orig = bestThresh[c];
+                foreach (double cand in candidates)
+                {
+                    bestThresh[c] = cand;
+                    var res = EvaluateWithThresholds(probs, actuals, bestThresh);
+                    if (res.MacroF1 > bestMacroF1)
+                    {
+                        bestMacroF1 = res.MacroF1;
+                        orig = cand;
+                    }
+                }
+                bestThresh[c] = orig;
+            }
+        }
+
+        Thresholds = bestThresh;
+        return EvaluateWithThresholds(probs, actuals, Thresholds);
+    }
+
+    private MacroF1Result EvaluateWithThresholds(double[][] probs, int[] actuals, double[] thresh)
+    {
+        int[] preds = new int[actuals.Length];
+        for (int i = 0; i < actuals.Length; i++)
+        {
+            int best = 0;
+            double bestScore = probs[i][0] / Math.Max(1e-4, thresh[0]);
+            for (int c = 1; c < ClassCount; c++)
+            {
+                double s = probs[i][c] / Math.Max(1e-4, thresh[c]);
+                if (s > bestScore)
+                {
+                    bestScore = s;
+                    best = c;
+                }
+            }
+            preds[i] = best;
+        }
+        return MacroF1Metrics.Compute(actuals, preds, ClassCount);
     }
 
     private List<(double[] Features, int Label)> EncodeSamples(
@@ -255,9 +336,27 @@ public sealed class KairosClassifier
 
     /// <summary>
     /// Predicts the class of a continuous 1D signal with optional auxiliary features.
+    /// Applies calibrated thresholds if available.
     /// </summary>
     public int Predict(ReadOnlySpan<double> signal, int effectiveLength = -1)
     {
+        if (Thresholds != null && Thresholds.Length == ClassCount)
+        {
+            double[] probs = PredictProbabilities(signal, effectiveLength);
+            int best = 0;
+            double bestScore = probs[0] / Math.Max(1e-4, Thresholds[0]);
+            for (int c = 1; c < ClassCount; c++)
+            {
+                double s = probs[c] / Math.Max(1e-4, Thresholds[c]);
+                if (s > bestScore)
+                {
+                    bestScore = s;
+                    best = c;
+                }
+            }
+            return best;
+        }
+
         var (pred, _, _, _, _) = PredictDetailed(signal, effectiveLength);
         return pred;
     }
@@ -391,7 +490,8 @@ public sealed class KairosClassifier
             W1 = _trainer.W1,
             B1 = _trainer.B1,
             W2 = _trainer.W2,
-            B2 = _trainer.B2
+            B2 = _trainer.B2,
+            Thresholds = Thresholds
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -414,7 +514,8 @@ public sealed class KairosClassifier
         var classifier = new KairosClassifier(meta.SubregionCount, meta.Seed)
         {
             ClassCount = meta.ClassCount,
-            IsTrained = true
+            IsTrained = true,
+            Thresholds = meta.Thresholds ?? []
         };
 
         classifier._trainer = new PairwiseTrainer(meta.ClassCount, meta.TotalFeatures, meta.HiddenDim, meta.Seed);

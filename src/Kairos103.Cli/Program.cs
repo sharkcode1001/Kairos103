@@ -445,6 +445,7 @@ switch (command)
         bool classWeights = true;
         bool baselines = true;
         double weightPower = 0.5;
+        bool calibrateThresholds = true;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -470,6 +471,8 @@ switch (command)
                 classWeights = false;
             else if (args[i] == "--no-baselines")
                 baselines = false;
+            else if (args[i] == "--no-calibrate")
+                calibrateThresholds = false;
         }
 
         if (string.IsNullOrEmpty(trainPath))
@@ -478,7 +481,7 @@ switch (command)
             break;
         }
 
-        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower);
+        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower, calibrateThresholds);
         break;
     }
 

@@ -19,7 +19,8 @@ public static class TrainEcgCommand
         int seed = 42,
         bool useClassWeights = true,
         bool runBaselines = true,
-        double weightPower = 0.5)
+        double weightPower = 0.5,
+        bool calibrateThresholds = true)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("          KAIROS103 - KAGGLE ECG ARRHYTHMIA TRAINING PIPELINE             ");
@@ -122,7 +123,8 @@ public static class TrainEcgCommand
             onEpochCompleted: (ep, totalEp, valAcc, valMacroF1) =>
             {
                 Console.WriteLine($"  Epoch [{ep,2}/{totalEp,2}] -> Val Macro F1: {valMacroF1:F4} | Val Accuracy: {valAcc * 100:F2}%");
-            });
+            },
+            calibrateThresholds: calibrateThresholds);
         sw.Stop();
 
         Console.WriteLine($"\nTraining completed in {sw.ElapsedMilliseconds} ms.");

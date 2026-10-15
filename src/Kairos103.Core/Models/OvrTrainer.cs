@@ -89,6 +89,16 @@ public sealed class OvrTrainer
     public double[] PredictProbabilities(ReadOnlySpan<double> features)
     {
         double[] probs = new double[ClassCount];
+        Span<int> active = stackalloc int[FeatureDim];
+        int activeCount = 0;
+        for (int f = 0; f < features.Length; f++)
+        {
+            if (features[f] != 0.0)
+            {
+                active[activeCount++] = f;
+            }
+        }
+
         for (int c = 0; c < ClassCount; c++)
         {
             double z = B2[c];
@@ -100,8 +110,9 @@ public sealed class OvrTrainer
             {
                 double sum = b1c[j];
                 var w1cj = w1c[j];
-                for (int f = 0; f < FeatureDim; f++)
+                for (int k = 0; k < activeCount; k++)
                 {
+                    int f = active[k];
                     sum += w1cj[f] * features[f];
                 }
                 double hj = sum > 0.0 ? sum : 0.0; // ReLU
@@ -215,10 +226,17 @@ public sealed class OvrTrainer
 
         double[] h = new double[HiddenDim];
         double[] deltaH = new double[HiddenDim];
+        List<int> activeFeatures = new List<int>(64);
 
         for (int i = 0; i < n; i++)
         {
             var (feats, label) = dataset[i];
+            activeFeatures.Clear();
+            for (int f = 0; f < FeatureDim; f++)
+            {
+                if (feats[f] != 0.0) activeFeatures.Add(f);
+            }
+            int activeCount = activeFeatures.Count;
 
             for (int c = 0; c < ClassCount; c++)
             {
@@ -234,8 +252,9 @@ public sealed class OvrTrainer
                 {
                     double sum = b1c[j];
                     var w1cj = w1c[j];
-                    for (int f = 0; f < FeatureDim; f++)
+                    for (int k = 0; k < activeCount; k++)
                     {
+                        int f = activeFeatures[k];
                         sum += w1cj[f] * feats[f];
                     }
                     h[j] = sum > 0.0 ? sum : 0.0;
@@ -288,8 +307,9 @@ public sealed class OvrTrainer
                     var w1cj = w1c[j];
                     var mW1cj = mW1c[j];
                     var vW1cj = vW1c[j];
-                    for (int f = 0; f < FeatureDim; f++)
+                    for (int k = 0; k < activeCount; k++)
                     {
+                        int f = activeFeatures[k];
                         double gW1 = dH * feats[f];
                         mW1cj[f] = beta1 * mW1cj[f] + (1.0 - beta1) * gW1;
                         vW1cj[f] = beta2 * vW1cj[f] + (1.0 - beta2) * gW1 * gW1;

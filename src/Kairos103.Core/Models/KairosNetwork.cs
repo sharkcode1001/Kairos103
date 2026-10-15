@@ -18,6 +18,21 @@ public sealed class KairosNetwork
 
     private readonly ModularSubregion[] _subregions;
     private readonly double[][] _projectionWeights; // Fixed normalized random projection
+    private readonly FilterCoord[]? _coords250;
+
+    public readonly struct FilterCoord
+    {
+        public readonly int IdxLow;
+        public readonly int IdxHigh;
+        public readonly double Frac;
+
+        public FilterCoord(int low, int high, double frac)
+        {
+            IdxLow = low;
+            IdxHigh = high;
+            Frac = frac;
+        }
+    }
 
     public KairosNetwork(int subregionCount = 16, int seed = 20261010)
     {
@@ -52,6 +67,57 @@ public sealed class KairosNetwork
                 }
             }
         }
+
+        _coords250 = PrecomputeCoordinates(subregionCount, 250);
+    }
+
+    private KairosNetwork(int subregionCount, double[][] projectionWeights, FilterCoord[]? coords250)
+    {
+        SubregionCount = subregionCount;
+        _projectionWeights = projectionWeights;
+        _coords250 = coords250;
+        _subregions = new ModularSubregion[subregionCount];
+        for (int m = 0; m < subregionCount; m++)
+        {
+            _subregions[m] = new ModularSubregion(baseThreshold: 0.75, decayRate: 0.90, lateralInhibitionBoost: 0.20);
+        }
+    }
+
+    /// <summary>
+    /// Creates an independent clone of the network sharing read-only weights and caches.
+    /// Thread-safe for parallel signal encoding.
+    /// </summary>
+    public KairosNetwork Clone() => new KairosNetwork(SubregionCount, _projectionWeights, _coords250);
+
+    private static FilterCoord[] PrecomputeCoordinates(int subregionCount, int length)
+    {
+        var coords = new FilterCoord[TotalPhaseSteps * subregionCount * FilterPoints];
+        for (int step = 0; step < TotalPhaseSteps; step++)
+        {
+            double phase = (double)step / (TotalPhaseSteps - 1);
+            for (int m = 0; m < subregionCount; m++)
+            {
+                double scaleFraction = 0.08 + (0.18 * (m % 4) / 3.0);
+                double windowSize = Math.Max(2.0, length * scaleFraction);
+                double phaseAdjusted = (m % 2 == 1)
+                    ? 0.20 + (0.60 * phase)
+                    : phase;
+
+                double maxStart = Math.Max(0.0, length - windowSize);
+                double windowStart = phaseAdjusted * maxStart;
+
+                int offset = (step * subregionCount + m) * FilterPoints;
+                for (int k = 0; k < FilterPoints; k++)
+                {
+                    double samplePos = windowStart + (k * (windowSize - 1.0) / (FilterPoints - 1.0));
+                    int idxLow = (int)Math.Floor(samplePos);
+                    int idxHigh = Math.Min(idxLow + 1, length - 1);
+                    double frac = samplePos - idxLow;
+                    coords[offset + k] = new FilterCoord(idxLow, idxHigh, frac);
+                }
+            }
+        }
+        return coords;
     }
 
     /// <summary>
@@ -75,6 +141,8 @@ public sealed class KairosNetwork
         int totalSpikes = 0;
         long frontEndMacs = 0;
         Span<double> currents = stackalloc double[ModularSubregion.SubregionSize];
+        Span<double> sampledPoints = stackalloc double[FilterPoints];
+        bool useFastCoords = (length == 250 && _coords250 != null && signal.Length >= 250);
 
         // Sweep in normalized phase u in [0, 1]
         for (int step = 0; step < TotalPhaseSteps; step++)
@@ -83,26 +151,32 @@ public sealed class KairosNetwork
 
             for (int m = 0; m < SubregionCount; m++)
             {
-                // Multi-scale temporal receptive fields (8% to 26% for hierarchical resolution)
-                double scaleFraction = 0.08 + (0.18 * (m % 4) / 3.0);
-                double windowSize = Math.Max(2.0, length * scaleFraction);
-
-                // Temporal receptive field center:
-                // Even subregions perform a full global sweep [0, 1]
-                // Odd subregions concentrate on the central zone [0.20, 0.80] where depolarization (QRS) occurs
-                double phaseAdjusted = (m % 2 == 1)
-                    ? 0.20 + (0.60 * phase)
-                    : phase;
-
-                double maxStart = Math.Max(0.0, length - windowSize);
-                double windowStart = phaseAdjusted * maxStart;
-
                 int baseNeuronIdx = m * ModularSubregion.SubregionSize;
 
-                for (int n = 0; n < ModularSubregion.SubregionSize; n++)
+                if (useFastCoords)
                 {
-                    double current = 0.0;
-                    double[] w = _projectionWeights[baseNeuronIdx + n];
+                    int coordOffset = ((step * SubregionCount) + m) * FilterPoints;
+                    for (int k = 0; k < FilterPoints; k++)
+                    {
+                        var c = _coords250![coordOffset + k];
+                        sampledPoints[k] = ((1.0 - c.Frac) * signal[c.IdxLow]) + (c.Frac * signal[c.IdxHigh]);
+                    }
+                }
+                else
+                {
+                    // Multi-scale temporal receptive fields (8% to 26% for hierarchical resolution)
+                    double scaleFraction = 0.08 + (0.18 * (m % 4) / 3.0);
+                    double windowSize = Math.Max(2.0, length * scaleFraction);
+
+                    // Temporal receptive field center:
+                    // Even subregions perform a full global sweep [0, 1]
+                    // Odd subregions concentrate on the central zone [0.20, 0.80] where depolarization (QRS) occurs
+                    double phaseAdjusted = (m % 2 == 1)
+                        ? 0.20 + (0.60 * phase)
+                        : phase;
+
+                    double maxStart = Math.Max(0.0, length - windowSize);
+                    double windowStart = phaseAdjusted * maxStart;
 
                     for (int k = 0; k < FilterPoints; k++)
                     {
@@ -111,11 +185,20 @@ public sealed class KairosNetwork
                         int idxHigh = Math.Min(idxLow + 1, length - 1);
                         double frac = samplePos - idxLow;
 
-                        double sampleVal = (idxLow >= 0 && idxLow < length)
+                        sampledPoints[k] = (idxLow >= 0 && idxLow < length)
                             ? ((1.0 - frac) * signal[idxLow]) + (frac * signal[idxHigh])
                             : 0.0;
+                    }
+                }
 
-                        current += sampleVal * w[k];
+                for (int n = 0; n < ModularSubregion.SubregionSize; n++)
+                {
+                    double current = 0.0;
+                    double[] w = _projectionWeights[baseNeuronIdx + n];
+
+                    for (int k = 0; k < FilterPoints; k++)
+                    {
+                        current += sampledPoints[k] * w[k];
                         frontEndMacs++;
                     }
 
@@ -131,7 +214,12 @@ public sealed class KairosNetwork
 
         for (int m = 0; m < SubregionCount; m++)
         {
-            int firedCount = _subregions[m].Neurons.Count(n => n.HasFired);
+            int firedCount = 0;
+            var neurons = _subregions[m].Neurons;
+            for (int n = 0; n < neurons.Count; n++)
+            {
+                if (neurons[n].HasFired) firedCount++;
+            }
             totalSpikes += firedCount;
 
             if (firedCount >= 2)

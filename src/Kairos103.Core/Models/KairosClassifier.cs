@@ -451,26 +451,24 @@ public sealed class KairosClassifier
         Thresholds = defaultThresholds ?? [1.00, 1.00, 1.25, 1.00];
     }
 
-    private List<(double[] Features, int Label)> EncodeSamples(
+    private IReadOnlyList<(double[] Features, int Label)> EncodeSamples(
         IReadOnlyList<SignalSample> samples,
         int auxCount,
         int totalInputDim,
         string phaseName = "signals")
     {
-        var encoded = new List<(double[] Features, int Label)>(samples.Count);
-        int reportStep = Math.Max(1000, samples.Count / 10);
+        var encoded = new (double[] Features, int Label)[samples.Count];
+        int total = samples.Count;
+        int completed = 0;
+        int reportStep = Math.Max(1000, total / 10);
 
-        for (int i = 0; i < samples.Count; i++)
+        using var threadLocalNet = new ThreadLocal<KairosNetwork>(() => _network.Clone());
+
+        Parallel.For(0, total, i =>
         {
-            if (samples.Count >= 2000 && (i % reportStep == 0 || i == samples.Count - 1))
-            {
-                double pct = (double)(i + 1) / samples.Count * 100.0;
-                Console.WriteLine($"  [Feature Extraction: {phaseName}] Processed {i + 1:N0} / {samples.Count:N0} ({pct:F1}%)...");
-                Console.Out.Flush();
-            }
-
+            var net = threadLocalNet.Value!;
             var s = samples[i];
-            var (feats, _) = _network.Forward(s.Values, s.EffectiveLength);
+            var (feats, _) = net.Forward(s.Values, s.EffectiveLength);
 
             if (auxCount > 0)
             {
@@ -481,13 +479,25 @@ public sealed class KairosClassifier
                 {
                     combined[_network.TotalFeatures + a] = s.Values[eff + a];
                 }
-                encoded.Add((combined, s.Label));
+                encoded[i] = (combined, s.Label);
             }
             else
             {
-                encoded.Add((feats, s.Label));
+                encoded[i] = (feats, s.Label);
             }
-        }
+
+            if (total >= 2000)
+            {
+                int currentCompleted = Interlocked.Increment(ref completed);
+                if (currentCompleted % reportStep == 0 || currentCompleted == total)
+                {
+                    double pct = (double)currentCompleted / total * 100.0;
+                    Console.WriteLine($"  [Feature Extraction: {phaseName}] Processed {currentCompleted:N0} / {total:N0} ({pct:F1}%)...");
+                    Console.Out.Flush();
+                }
+            }
+        });
+
         return encoded;
     }
 

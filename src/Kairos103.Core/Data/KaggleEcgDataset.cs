@@ -15,25 +15,83 @@ public sealed record KaggleEcgSample(
     int Label)
 {
     public const int WaveformLength = 250;
-    public const int AuxCount = 3;
+    public const int AuxCount = 8;
     public const int TotalLength = WaveformLength + AuxCount;
 
     /// <summary>
-    /// Combines the 250 waveform samples followed by the 3 auxiliary features into a single continuous vector.
+    /// Combines the 250 waveform samples followed by 8 auxiliary features into a single continuous vector:
+    /// [0..2]: pre_rr, post_rr, rr_ratio
+    /// [3..7]: p2p_amplitude, qrs_energy, qrs_p2p, total_energy, qrs_width_est
     /// </summary>
     public double[] ToCombinedSignal()
     {
         double[] combined = new double[TotalLength];
         Array.Copy(Waveform, combined, Math.Min(Waveform.Length, WaveformLength));
+
+        // Aux 0..2: Rhythm features
         combined[WaveformLength] = PreRr;
         combined[WaveformLength + 1] = PostRr;
         combined[WaveformLength + 2] = RrRatio;
+
+        // Aux 3..7: Waveform morphological metrics (calculated in a single 250-sample pass)
+        double maxVal = double.NegativeInfinity, minVal = double.PositiveInfinity;
+        double totalSq = 0.0;
+        int waveLen = Math.Min(Waveform.Length, WaveformLength);
+
+        for (int i = 0; i < waveLen; i++)
+        {
+            double v = Waveform[i];
+            if (v > maxVal) maxVal = v;
+            if (v < minVal) minVal = v;
+            totalSq += v * v;
+        }
+
+        double p2p = (maxVal > minVal) ? maxVal - minVal : 0.0;
+        double totalEnergy = waveLen > 0 ? totalSq / waveLen : 0.0;
+
+        // QRS zone: samples 90 to 160 (depolarization window)
+        int qrsStart = Math.Min(90, Math.Max(0, waveLen - 1));
+        int qrsEnd = Math.Min(160, waveLen);
+        double qrsMax = double.NegativeInfinity, qrsMin = double.PositiveInfinity;
+        double qrsSq = 0.0;
+        double qrsAbsMax = 0.0;
+
+        for (int i = qrsStart; i < qrsEnd; i++)
+        {
+            double v = Waveform[i];
+            if (v > qrsMax) qrsMax = v;
+            if (v < qrsMin) qrsMin = v;
+            qrsSq += v * v;
+            double absV = Math.Abs(v);
+            if (absV > qrsAbsMax) qrsAbsMax = absV;
+        }
+
+        double qrsP2p = (qrsMax > qrsMin) ? qrsMax - qrsMin : 0.0;
+        double qrsEnergy = (qrsEnd > qrsStart) ? qrsSq / (qrsEnd - qrsStart) : 0.0;
+
+        int qrsWidthCount = 0;
+        double halfPeak = 0.5 * qrsAbsMax;
+        if (halfPeak > 1e-4)
+        {
+            for (int i = qrsStart; i < qrsEnd; i++)
+            {
+                if (Math.Abs(Waveform[i]) >= halfPeak) qrsWidthCount++;
+            }
+        }
+        double qrsWidth = qrsWidthCount / 25.0; // Normalized QRS width estimate
+
+        combined[WaveformLength + 3] = p2p;
+        combined[WaveformLength + 4] = qrsEnergy;
+        combined[WaveformLength + 5] = qrsP2p;
+        combined[WaveformLength + 6] = totalEnergy;
+        combined[WaveformLength + 7] = qrsWidth;
+
         return combined;
     }
 
     /// <summary>
     /// Converts this sample into a Kairos SignalSample with effective length set to 250.
-    /// The LIF front-end processes only the 250 waveform points, and the 3 aux features are fused into the readout.
+    /// The LIF front-end processes only the 250 waveform points, and the 8 aux features are fused into the readout.
     /// </summary>
     public SignalSample ToSignalSample()
     {

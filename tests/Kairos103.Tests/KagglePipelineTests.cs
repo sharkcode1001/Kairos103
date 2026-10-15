@@ -105,10 +105,10 @@ public class KagglePipelineTests
             Assert.Equal(0.85, trainSamples[0].PostRr, 3);
             Assert.Equal(0.96, trainSamples[0].RrRatio, 3);
 
-            // SignalSample must have EffectiveLength = 250 and Total = 253
+            // SignalSample must have EffectiveLength = 250 and Total = 258 (250 waveform + 8 aux features)
             var sigSample = trainSamples[0].ToSignalSample();
             Assert.Equal(250, sigSample.EffectiveLength);
-            Assert.Equal(253, sigSample.Values.Length);
+            Assert.Equal(258, sigSample.Values.Length);
             Assert.Equal(0.96, sigSample.Values[252], 3);
 
             // 2. Test LoadTest
@@ -206,8 +206,8 @@ public class KagglePipelineTests
             classifier.Save(tempModel);
             var loaded = KairosClassifier.Load(tempModel);
 
-            // Subregions: 8 * 24 = 192, plus 3 aux features = 195
-            Assert.Equal(195, loaded.TotalFeatures);
+            // Subregions: 8 * 24 = 192, plus 8 aux features = 200
+            Assert.Equal(200, loaded.TotalFeatures);
 
             for (int i = 0; i < val.Count; i++)
             {

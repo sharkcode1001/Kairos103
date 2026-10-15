@@ -217,7 +217,7 @@ public sealed class KairosClassifier
         {
             for (int c = 0; c < ClassCount; c++)
             {
-                double orig = bestThresh[c];
+                double bestCand = bestThresh[c];
                 foreach (double cand in candidates)
                 {
                     bestThresh[c] = cand;
@@ -225,10 +225,10 @@ public sealed class KairosClassifier
                     if (res.MacroF1 > bestMacroF1)
                     {
                         bestMacroF1 = res.MacroF1;
-                        orig = cand;
+                        bestCand = cand;
                     }
                 }
-                bestThresh[c] = orig;
+                bestThresh[c] = bestCand;
             }
         }
 

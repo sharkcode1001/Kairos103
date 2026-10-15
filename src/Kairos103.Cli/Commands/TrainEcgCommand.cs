@@ -107,7 +107,7 @@ public static class TrainEcgCommand
         Console.WriteLine($"\nInitializing Kairos103 Classifier:");
         Console.WriteLine($"  Subregions: {subregions} ({subregions * 4} LIF neurons, {subregions * 24} Lehmer features)");
         Console.WriteLine($"  Readout:    2-layer MLP ({hiddenDim} hidden neurons, Adam optimizer)");
-        Console.WriteLine($"  Auxiliary:  3 rhythm features (pre_rr, post_rr, rr_ratio)");
+        Console.WriteLine($"  Auxiliary:  8 features (3 RR rhythm: pre_rr, post_rr, rr_ratio + 5 morphological: p2p, qrs_energy, qrs_p2p, total_energy, qrs_width)");
         Console.WriteLine($"  Optimization Metric: Macro F1 on validation fold\n");
 
         var classifier = new KairosClassifier(subregionCount: subregions, seed: seed);

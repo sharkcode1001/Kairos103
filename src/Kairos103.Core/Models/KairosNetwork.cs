@@ -83,12 +83,19 @@ public sealed class KairosNetwork
 
             for (int m = 0; m < SubregionCount; m++)
             {
-                // Window scale relative to signal length (10% to 28% for spectral stability)
-                double scaleFraction = 0.10 + (0.18 * (m % 4) / 3.0);
+                // Multi-scale temporal receptive fields (8% to 26% for hierarchical resolution)
+                double scaleFraction = 0.08 + (0.18 * (m % 4) / 3.0);
                 double windowSize = Math.Max(2.0, length * scaleFraction);
 
+                // Temporal receptive field center:
+                // Even subregions perform a full global sweep [0, 1]
+                // Odd subregions concentrate on the central zone [0.20, 0.80] where depolarization (QRS) occurs
+                double phaseAdjusted = (m % 2 == 1)
+                    ? 0.20 + (0.60 * phase)
+                    : phase;
+
                 double maxStart = Math.Max(0.0, length - windowSize);
-                double windowStart = phase * maxStart;
+                double windowStart = phaseAdjusted * maxStart;
 
                 int baseNeuronIdx = m * ModularSubregion.SubregionSize;
 

@@ -194,13 +194,7 @@ public sealed class LinearEcgClassifier : IEcgBaseline
 
     private static double GetFeature(KaggleEcgSample s, int index)
     {
-        if (index < KaggleEcgSample.WaveformLength)
-            return s.Waveform[index];
-        if (index == KaggleEcgSample.WaveformLength)
-            return s.PreRr;
-        if (index == KaggleEcgSample.WaveformLength + 1)
-            return s.PostRr;
-        return s.RrRatio;
+        return s.ToCombinedSignal()[index];
     }
 }
 
@@ -402,8 +396,10 @@ public sealed class Cnn1DEcgClassifier : IEcgBaseline
         }
 
         // 2. Append auxiliary features
-        outputFcIn[FlatDim] = s.PreRr;
-        outputFcIn[FlatDim + 1] = s.PostRr;
-        outputFcIn[FlatDim + 2] = s.RrRatio;
+        var combined = s.ToCombinedSignal();
+        for (int a = 0; a < KaggleEcgSample.AuxCount; a++)
+        {
+            outputFcIn[FlatDim + a] = combined[KaggleEcgSample.WaveformLength + a];
+        }
     }
 }

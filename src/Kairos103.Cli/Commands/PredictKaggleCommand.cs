@@ -38,6 +38,21 @@ public static class PredictKaggleCommand
             classifiers.Add(c);
         }
 
+        // Validate ensemble models share matching architecture
+        for (int m = 1; m < classifiers.Count; m++)
+        {
+            if (classifiers[m].SubregionCount != classifiers[0].SubregionCount ||
+                classifiers[m].ClassCount != classifiers[0].ClassCount ||
+                classifiers[m].IsOvr != classifiers[0].IsOvr)
+            {
+                throw new InvalidOperationException(
+                    $"Ensemble architecture mismatch between '{modelFiles[0]}' and '{modelFiles[m]}'! " +
+                    $"Subregions ({classifiers[0].SubregionCount} vs {classifiers[m].SubregionCount}), " +
+                    $"Classes ({classifiers[0].ClassCount} vs {classifiers[m].ClassCount}), " +
+                    $"IsOvr ({classifiers[0].IsOvr} vs {classifiers[m].IsOvr}) must be identical.");
+            }
+        }
+
         if (!File.Exists(testPath))
         {
             Console.WriteLine($"[ERROR] Test data file not found: {testPath}");

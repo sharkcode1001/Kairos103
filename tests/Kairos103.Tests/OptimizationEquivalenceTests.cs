@@ -99,4 +99,34 @@ public class OptimizationEquivalenceTests
             }
         }
     }
+
+    [Fact]
+    public void Ensemble_AveragesProbabilitiesExact_AcrossMultipleModels()
+    {
+        var m1 = new OvrTrainer(classCount: 4, featureDim: 32, hiddenDim: 8, seed: 42);
+        var m2 = new OvrTrainer(classCount: 4, featureDim: 32, hiddenDim: 8, seed: 777);
+        var m3 = new OvrTrainer(classCount: 4, featureDim: 32, hiddenDim: 8, seed: 20261010);
+
+        var rng = new Random(999);
+        double[] sampleFeats = new double[32];
+        for (int i = 0; i < 32; i++) sampleFeats[i] = rng.NextDouble();
+
+        double[] p1 = m1.PredictProbabilities(sampleFeats);
+        double[] p2 = m2.PredictProbabilities(sampleFeats);
+        double[] p3 = m3.PredictProbabilities(sampleFeats);
+
+        for (int c = 0; c < 4; c++)
+        {
+            double expectedAvg = (p1[c] + p2[c] + p3[c]) / 3.0;
+            double computedAvg = 0.0;
+            var ensemble = new[] { m1, m2, m3 };
+            for (int k = 0; k < ensemble.Length; k++)
+            {
+                computedAvg += ensemble[k].PredictProbabilities(sampleFeats)[c];
+            }
+            computedAvg /= ensemble.Length;
+
+            Assert.Equal(expectedAvg, computedAvg, precision: 10);
+        }
+    }
 }

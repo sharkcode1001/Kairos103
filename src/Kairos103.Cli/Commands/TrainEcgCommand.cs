@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Kairos103.Core.Baselines;
 using Kairos103.Core.Data;
 using Kairos103.Core.Evaluation;
@@ -21,7 +22,8 @@ public static class TrainEcgCommand
         bool runBaselines = true,
         double weightPower = 0.5,
         bool calibrateThresholds = true,
-        bool useOvr = false)
+        bool useOvr = false,
+        double[]? weightPowers = null)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("          KAIROS103 - KAGGLE ECG ARRHYTHMIA TRAINING PIPELINE             ");
@@ -93,11 +95,23 @@ public static class TrainEcgCommand
         double[]? classWeights = null;
         if (useClassWeights)
         {
-            classWeights = KaggleEcgDataset.ComputeBalancedClassWeights(trainSamples, 4, weightPower);
-            Console.WriteLine($"\nBalanced Class Loss Weights (Power: {weightPower:F2}):");
-            for (int c = 0; c < 4; c++)
+            if (weightPowers != null && weightPowers.Length == 4)
             {
-                Console.WriteLine($"  Class {c}: {classWeights[c]:F3}");
+                Console.WriteLine($"\nAsymmetric Class Loss Weights (Powers: [{string.Join(", ", weightPowers.Select(p => p.ToString("F2", CultureInfo.InvariantCulture)))}]):");
+                for (int c = 0; c < 4; c++)
+                {
+                    var w = KaggleEcgDataset.ComputeBalancedClassWeights(trainSamples, 4, weightPowers[c]);
+                    Console.WriteLine($"  Class {c}: {w[c]:F3}");
+                }
+            }
+            else
+            {
+                classWeights = KaggleEcgDataset.ComputeBalancedClassWeights(trainSamples, 4, weightPower);
+                Console.WriteLine($"\nBalanced Class Loss Weights (Power: {weightPower:F2}):");
+                for (int c = 0; c < 4; c++)
+                {
+                    Console.WriteLine($"  Class {c}: {classWeights[c]:F3}");
+                }
             }
         }
 
@@ -131,7 +145,8 @@ public static class TrainEcgCommand
                     onProgress: (ep, totalEp) =>
                     {
                         Console.WriteLine($"  Epoch [{ep,2}/{totalEp,2}] complete on 100% training data (OvR).");
-                    });
+                    },
+                    weightPowers: weightPowers);
                 sw.Stop();
 
                 Console.WriteLine($"\nOvR Full Training completed in {sw.ElapsedMilliseconds} ms.");
@@ -151,7 +166,8 @@ public static class TrainEcgCommand
                     {
                         Console.WriteLine($"  Epoch [{ep,2}/{totalEp,2}] -> Val Macro F1: {valMacroF1:F4} | Val Accuracy: {valAcc * 100:F2}%");
                     },
-                    calibrateThresholds: calibrateThresholds);
+                    calibrateThresholds: calibrateThresholds,
+                    weightPowers: weightPowers);
                 sw.Stop();
 
                 Console.WriteLine($"\nOvR Training completed in {sw.ElapsedMilliseconds} ms.");

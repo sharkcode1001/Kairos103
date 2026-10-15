@@ -318,7 +318,8 @@ public sealed class KairosClassifier
         int hiddenDim = 32,
         double weightPower = 0.5,
         Action<int, int, double, double>? onEpochCompleted = null,
-        bool calibrateThresholds = true)
+        bool calibrateThresholds = true,
+        double[]? weightPowers = null)
     {
         if (trainSamples == null || trainSamples.Count == 0)
             throw new ArgumentException("Train samples cannot be empty.", nameof(trainSamples));
@@ -361,7 +362,8 @@ public sealed class KairosClassifier
                 if (encodedTrain[i].Label == c) pos++;
             }
             int neg = nTrain - pos;
-            posWeights[c] = pos > 0 ? Math.Pow((double)neg / pos, weightPower) : 1.0;
+            double wp = (weightPowers != null && c < weightPowers.Length) ? weightPowers[c] : weightPower;
+            posWeights[c] = pos > 0 ? Math.Pow((double)neg / pos, wp) : 1.0;
         }
 
         MacroF1Result? bestResult = null;
@@ -419,7 +421,8 @@ public sealed class KairosClassifier
         int hiddenDim = 32,
         double weightPower = 0.5,
         double[]? defaultThresholds = null,
-        Action<int, int>? onProgress = null)
+        Action<int, int>? onProgress = null,
+        double[]? weightPowers = null)
     {
         if (trainSamples == null || trainSamples.Count == 0)
             throw new ArgumentException("Train samples cannot be empty.", nameof(trainSamples));
@@ -445,7 +448,7 @@ public sealed class KairosClassifier
         Console.WriteLine($"[2/2] Training {ClassCount} independent OvR binary heads on 100% data ({epochs} epochs, Adam optimizer)...");
         Console.Out.Flush();
 
-        _ovrTrainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, weightPower: weightPower);
+        _ovrTrainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, weightPower: weightPower, weightPowers: weightPowers);
         IsTrained = true;
 
         Thresholds = defaultThresholds ?? [1.00, 1.00, 1.25, 1.00];

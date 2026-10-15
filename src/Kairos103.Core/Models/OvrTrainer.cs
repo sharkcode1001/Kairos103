@@ -156,7 +156,8 @@ public sealed class OvrTrainer
         int epochs = 25,
         double lr = 0.01,
         Action<int, int>? onProgress = null,
-        double weightPower = 0.5)
+        double weightPower = 0.5,
+        double[]? weightPowers = null)
     {
         if (dataset == null || dataset.Count == 0) return;
 
@@ -171,7 +172,8 @@ public sealed class OvrTrainer
                 if (dataset[i].Label == c) pos++;
             }
             int neg = n - pos;
-            posWeights[c] = pos > 0 ? Math.Pow((double)neg / pos, weightPower) : 1.0;
+            double wp = (weightPowers != null && c < weightPowers.Length) ? weightPowers[c] : weightPower;
+            posWeights[c] = pos > 0 ? Math.Pow((double)neg / pos, wp) : 1.0;
         }
 
         for (int ep = 0; ep < epochs; ep++)

@@ -447,6 +447,7 @@ switch (command)
         double weightPower = 0.5;
         bool calibrateThresholds = true;
         bool useOvr = false;
+        double[]? weightPowers = null;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -470,6 +471,11 @@ switch (command)
                 useOvr = true;
             else if (args[i] == "--seed" && i + 1 < args.Length)
                 seed = int.Parse(args[++i]);
+            else if (args[i] == "--weight-powers" && i + 1 < args.Length)
+            {
+                string wpStr = args[++i];
+                weightPowers = wpStr.Split(',').Select(s => double.Parse(s.Trim(), System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            }
             else if (args[i] == "--weight-power" && i + 1 < args.Length)
                 weightPower = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
             else if (args[i] == "--no-class-weights")
@@ -486,7 +492,7 @@ switch (command)
             break;
         }
 
-        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower, calibrateThresholds, useOvr);
+        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower, calibrateThresholds, useOvr, weightPowers);
         break;
     }
 

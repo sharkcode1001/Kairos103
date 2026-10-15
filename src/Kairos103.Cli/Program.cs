@@ -438,7 +438,7 @@ switch (command)
         string modelPath = "results/model_ecg.kairos";
         int epochs = 35;
         double lr = 0.02;
-        int hidden = 48;
+        int hidden = 64;
         int subregions = 32;
         double valSplit = 0.2;
         int seed = 42;

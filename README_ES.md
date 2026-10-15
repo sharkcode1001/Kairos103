@@ -6,6 +6,10 @@
 [![Focus: Neuromorphic Computing](https://img.shields.io/badge/Focus-Event--Driven%20%7C%20Rank--Order-green.svg)](#)
 
 > **Idioma / Language:** [English (Inglés)](Readme.md) | **Español**
+>
+> [!NOTE]
+> **Taller Activo de Investigación / Sprint de Competencia Kaggle:**
+> Este repositorio se encuentra actualmente en un taller intensivo de ingeniería e investigación contra la competencia de Kaggle: *[NPPE2-T2-26 - ECG Heartbeat Arrhythmia Classification](https://www.kaggle.com/competitions/nppe-2-t-2-26-ecg-heartbeat-arrhythmia-classification)*. Los comandos del pipeline (`train-ecg`, `predict-kaggle`), rutinas de calibración de umbrales y extractores neuromórficos se encuentran en iteración activa contra el leaderboard. Una vez finalizado este taller, todos los componentes se ensamblarán, desacoplarán y consolidarán formalmente en su arquitectura canónica modular definitiva.
 
 ---
 

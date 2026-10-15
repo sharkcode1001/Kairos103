@@ -15,13 +15,13 @@ public sealed record KaggleEcgSample(
     int Label)
 {
     public const int WaveformLength = 250;
-    public const int AuxCount = 8;
+    public const int AuxCount = 9;
     public const int TotalLength = WaveformLength + AuxCount;
 
     /// <summary>
-    /// Combines the normalized 250 waveform samples followed by 8 patient-independent relative features into a single continuous vector:
+    /// Combines the normalized 250 waveform samples followed by 9 patient-independent relative features into a single continuous vector:
     /// [0..2]: pre_rr, post_rr, rr_ratio (rhythm)
-    /// [3..7]: prematurity_index, rel_qrs_energy, rel_qrs_p2p, rel_qrs_width, qrs_asymmetry (dimensionless relative morphology)
+    /// [3..8]: prematurity_index, compensatory_pause, rel_qrs_energy, rel_qrs_p2p, rel_qrs_width, qrs_asymmetry (relative morphology)
     /// </summary>
     public double[] ToCombinedSignal()
     {
@@ -53,7 +53,7 @@ public sealed record KaggleEcgSample(
         combined[WaveformLength + 1] = PostRr;
         combined[WaveformLength + 2] = RrRatio;
 
-        // Aux 3..7: Dimensionless relative morphology metrics (invariant to patient anatomy)
+        // Aux 3..8: Dimensionless relative morphology and rhythm metrics (invariant to patient anatomy)
         double totalEnergy = waveLen > 0 ? totalSq / waveLen : 0.0;
 
         // QRS zone: samples 90 to 160 (ventricular depolarization window)
@@ -91,23 +91,25 @@ public sealed record KaggleEcgSample(
         double prematurityIndex = (PreRr + PostRr > 1e-4)
             ? 0.5 * (Math.Clamp((PreRr - PostRr) / (PreRr + PostRr), -1.0, 1.0) + 1.0)
             : 0.5;
+        double compensatoryPause = 0.5 * (Math.Clamp((PostRr - PreRr) / Math.Max(1e-4, PreRr) / 2.0, -1.0, 1.0) + 1.0);
         double relQrsEnergy = totalEnergy > 1e-6 ? Math.Clamp(qrsEnergy / totalEnergy, 0.0, 1.0) : 0.0;
         double relQrsP2p = p2p > 1e-6 ? Math.Clamp(qrsP2p / p2p, 0.0, 1.0) : 0.0;
         double relQrsWidth = Math.Clamp(qrsWidthCount / 25.0, 0.0, 1.0);
         double qrsAsymmetry = (qrsEnd > qrsStart) ? (double)(peakIdx - qrsStart) / (qrsEnd - qrsStart) : 0.5;
 
         combined[WaveformLength + 3] = prematurityIndex;
-        combined[WaveformLength + 4] = relQrsEnergy;
-        combined[WaveformLength + 5] = relQrsP2p;
-        combined[WaveformLength + 6] = relQrsWidth;
-        combined[WaveformLength + 7] = qrsAsymmetry;
+        combined[WaveformLength + 4] = compensatoryPause;
+        combined[WaveformLength + 5] = relQrsEnergy;
+        combined[WaveformLength + 6] = relQrsP2p;
+        combined[WaveformLength + 7] = relQrsWidth;
+        combined[WaveformLength + 8] = qrsAsymmetry;
 
         return combined;
     }
 
     /// <summary>
     /// Converts this sample into a Kairos SignalSample with effective length set to 250.
-    /// The LIF front-end processes only the 250 waveform points, and the 8 aux features are fused into the readout.
+    /// The LIF front-end processes only the 250 waveform points, and the 9 aux features are fused into the readout.
     /// </summary>
     public SignalSample ToSignalSample()
     {

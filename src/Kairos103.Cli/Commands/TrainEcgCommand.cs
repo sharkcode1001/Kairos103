@@ -13,7 +13,7 @@ public static class TrainEcgCommand
         string modelPath,
         int epochs = 35,
         double lr = 0.02,
-        int hiddenDim = 48,
+        int hiddenDim = 64,
         int subregions = 32,
         double valSplit = 0.2,
         int seed = 42,
@@ -108,7 +108,7 @@ public static class TrainEcgCommand
         Console.WriteLine($"  Subregions: {subregions} ({subregions * 4} LIF neurons, {subregions * 24} Lehmer features)");
         Console.WriteLine($"  Readout:    2-layer MLP ({hiddenDim} hidden neurons, Adam optimizer)");
         Console.WriteLine($"  Waveform:   Per-beat min-max normalized [0, 1] (patient-independent scale)");
-        Console.WriteLine($"  Auxiliary:  8 relative features (3 rhythm + 5 dimensionless morphological ratios)");
+        Console.WriteLine($"  Auxiliary:  9 relative features (3 rhythm + 6 dimensionless morphological & pause ratios)");
         Console.WriteLine($"  Optimization Metric: Macro F1 on validation fold\n");
 
         var classifier = new KairosClassifier(subregionCount: subregions, seed: seed);

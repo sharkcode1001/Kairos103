@@ -214,6 +214,12 @@ public class KagglePipelineTests
                 int pOriginal = classifier.Predict(val[i].ToCombinedSignal(), effectiveLength: 250);
                 int pLoaded = loaded.Predict(val[i].ToCombinedSignal(), effectiveLength: 250);
                 Assert.Equal(pOriginal, pLoaded);
+
+                double[] probs = classifier.PredictProbabilities(val[i].ToCombinedSignal(), effectiveLength: 250);
+                Assert.Equal(4, probs.Length);
+                Assert.Equal(1.0, probs.Sum(), 4);
+                int maxProbIdx = Array.IndexOf(probs, probs.Max());
+                Assert.Equal(pOriginal, maxProbIdx);
             }
         }
         finally

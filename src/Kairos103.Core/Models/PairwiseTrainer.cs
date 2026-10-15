@@ -164,11 +164,11 @@ public sealed class PairwiseTrainer
 
         foreach (var (features, label) in dataset)
         {
-                // Gather sparse active feature indices
+                // Gather sparse active feature indices (any non-zero entry)
                 activeFeatures.Clear();
                 for (int f = 0; f < FeatureDim; f++)
                 {
-                    if (features[f] > 0.0) activeFeatures.Add(f);
+                    if (features[f] != 0.0) activeFeatures.Add(f);
                 }
 
                 // Layer 1 forward: H = LeakyReLU(W1 * x + B1)
@@ -318,7 +318,7 @@ public sealed class PairwiseTrainer
                 Bias[predicted] -= sampleWeight * lr;
                 for (int f = 0; f < FeatureDim; f++)
                 {
-                    if (features[f] > 0.0)
+                    if (features[f] != 0.0)
                     {
                         Weights[label][f] += sampleWeight * lr * features[f];
                         Weights[predicted][f] -= sampleWeight * lr * features[f];
@@ -373,7 +373,7 @@ public sealed class PairwiseTrainer
                 double sum = B1[j];
                 for (int f = 0; f < FeatureDim; f++)
                 {
-                    if (features[f] > 0.0)
+                    if (features[f] != 0.0)
                     {
                         sum += W1[j][f] * features[f];
                         accOps++;
@@ -412,7 +412,7 @@ public sealed class PairwiseTrainer
                 double score = Bias[c];
                 for (int f = 0; f < FeatureDim; f++)
                 {
-                    if (features[f] > 0.0)
+                    if (features[f] != 0.0)
                     {
                         score += Weights[c][f] * features[f];
                         accOps++;
@@ -428,5 +428,67 @@ public sealed class PairwiseTrainer
 
             return (bestClass, accOps);
         }
+    }
+
+    /// <summary>
+    /// Computes class probabilities using Softmax over logits.
+    /// </summary>
+    public double[] PredictProbabilities(double[] features)
+    {
+        double[] logits = new double[ClassCount];
+
+        if (HiddenDim > 0)
+        {
+            double[] h = new double[HiddenDim];
+            for (int j = 0; j < HiddenDim; j++)
+            {
+                double sum = B1[j];
+                for (int f = 0; f < FeatureDim; f++)
+                {
+                    if (features[f] != 0.0) sum += W1[j][f] * features[f];
+                }
+                h[j] = sum > 0.0 ? sum : 0.01 * sum;
+            }
+
+            for (int c = 0; c < ClassCount; c++)
+            {
+                double sum = B2[c];
+                for (int j = 0; j < HiddenDim; j++)
+                {
+                    sum += W2[c][j] * h[j];
+                }
+                logits[c] = sum;
+            }
+        }
+        else
+        {
+            for (int c = 0; c < ClassCount; c++)
+            {
+                double sum = Bias[c];
+                for (int f = 0; f < FeatureDim; f++)
+                {
+                    if (features[f] != 0.0) sum += Weights[c][f] * features[f];
+                }
+                logits[c] = sum;
+            }
+        }
+
+        double maxLogit = logits.Max();
+        double[] probs = new double[ClassCount];
+        double sumExp = 0.0;
+        for (int c = 0; c < ClassCount; c++)
+        {
+            double exp = Math.Exp(logits[c] - maxLogit);
+            probs[c] = exp;
+            sumExp += exp;
+        }
+
+        double invSum = 1.0 / Math.Max(1e-12, sumExp);
+        for (int c = 0; c < ClassCount; c++)
+        {
+            probs[c] *= invSum;
+        }
+
+        return probs;
     }
 }

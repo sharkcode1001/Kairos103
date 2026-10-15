@@ -247,6 +247,30 @@ public sealed class KairosClassifier
     }
 
     /// <summary>
+    /// Computes predicted class probabilities for a 1D signal with optional auxiliary features.
+    /// </summary>
+    public double[] PredictProbabilities(ReadOnlySpan<double> signal, int effectiveLength = -1)
+    {
+        EnsureTrained();
+        int len = effectiveLength > 0 ? effectiveLength : signal.Length;
+        var (feats, _) = _network.Forward(signal, len);
+
+        double[] inputFeats = feats;
+        int auxCount = signal.Length - len;
+        if (auxCount > 0 && _trainer!.FeatureDim == _network.TotalFeatures + auxCount)
+        {
+            inputFeats = new double[_trainer.FeatureDim];
+            Array.Copy(feats, inputFeats, _network.TotalFeatures);
+            for (int a = 0; a < auxCount; a++)
+            {
+                inputFeats[_network.TotalFeatures + a] = signal[len + a];
+            }
+        }
+
+        return _trainer!.PredictProbabilities(inputFeats);
+    }
+
+    /// <summary>
     /// Detailed prediction including spike tally and operations count.
     /// </summary>
     public (int Prediction, int TotalSpikes, long FrontEndMacs, int AccumulateOps, double[] Features) PredictDetailed(

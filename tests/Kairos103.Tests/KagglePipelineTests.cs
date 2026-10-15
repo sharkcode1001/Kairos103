@@ -227,4 +227,61 @@ public class KagglePipelineTests
             if (File.Exists(tempModel)) File.Delete(tempModel);
         }
     }
+
+    [Fact]
+    public void OvrReadout_Trains_Saves_Loads_AndPredicts_Successfully()
+    {
+        var rng = new Random(42);
+        var samples = new List<KaggleEcgSample>();
+
+        // Generate 40 synthetic samples with 4 classes
+        for (int i = 0; i < 40; i++)
+        {
+            double[] wave = new double[250];
+            int label = i % 4;
+            for (int t = 0; t < 250; t++)
+            {
+                wave[t] = Math.Sin(t * 0.1 * (label + 1)) + rng.NextDouble() * 0.05;
+            }
+            samples.Add(new KaggleEcgSample($"syn_{i}", wave, 300.0, 320.0, 300.0 / 320.0, label));
+        }
+
+        var (train, val) = KaggleEcgDataset.StratifiedSplit(samples, 0.25, seed: 42);
+        var trainSignals = train.Select(s => s.ToSignalSample()).ToList();
+        var valSignals = val.Select(s => s.ToSignalSample()).ToList();
+
+        var classifier = new KairosClassifier(subregionCount: 4, seed: 42);
+        var res = classifier.FitOvrWithValidation(trainSignals, valSignals, epochs: 5, lr: 0.02, hiddenDim: 16);
+
+        Assert.True(classifier.IsOvr);
+        Assert.True(res.MacroF1 >= 0.0);
+
+        string tempModel = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}_ovr.kairos");
+        try
+        {
+            classifier.Save(tempModel);
+            var loaded = KairosClassifier.Load(tempModel);
+
+            Assert.True(loaded.IsOvr);
+            Assert.Equal(classifier.TotalFeatures, loaded.TotalFeatures);
+
+            for (int i = 0; i < val.Count; i++)
+            {
+                int pOriginal = classifier.Predict(val[i].ToCombinedSignal(), effectiveLength: 250);
+                int pLoaded = loaded.Predict(val[i].ToCombinedSignal(), effectiveLength: 250);
+                Assert.Equal(pOriginal, pLoaded);
+
+                double[] probs = loaded.PredictProbabilities(val[i].ToCombinedSignal(), effectiveLength: 250);
+                Assert.Equal(4, probs.Length);
+                foreach (var p in probs)
+                {
+                    Assert.InRange(p, 0.0, 1.0);
+                }
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempModel)) File.Delete(tempModel);
+        }
+    }
 }

@@ -36,6 +36,11 @@ public sealed class KairosModelMetadata
     public double[][] W2 { get; set; } = [];
     public double[] B2 { get; set; } = [];
     public double[] Thresholds { get; set; } = [];
+    public bool IsOvr { get; set; } = false;
+    public double[][][] OvrW1 { get; set; } = [];
+    public double[][] OvrB1 { get; set; } = [];
+    public double[][] OvrW2 { get; set; } = [];
+    public double[] OvrB2 { get; set; } = [];
 }
 
 /// <summary>
@@ -49,13 +54,15 @@ public sealed class KairosClassifier
     public int ClassCount { get; private set; }
     public bool IsTrained { get; private set; }
     public double[] Thresholds { get; set; } = [];
+    public bool IsOvr => _ovrTrainer != null;
 
     public int TotalNeurons => _network?.TotalNeurons ?? (SubregionCount * 4);
-    public int TotalFeatures => _trainer?.FeatureDim ?? _network?.TotalFeatures ?? (SubregionCount * 24);
-    public int HiddenDim => _trainer?.HiddenDim ?? 0;
+    public int TotalFeatures => _ovrTrainer?.FeatureDim ?? _trainer?.FeatureDim ?? _network?.TotalFeatures ?? (SubregionCount * 24);
+    public int HiddenDim => _ovrTrainer?.HiddenDim ?? _trainer?.HiddenDim ?? 0;
 
     private KairosNetwork _network;
     private PairwiseTrainer? _trainer;
+    private OvrTrainer? _ovrTrainer;
 
     public KairosClassifier(int subregionCount = 16, int seed = 20261010)
     {
@@ -242,7 +249,9 @@ public sealed class KairosClassifier
         int[] actuals = new int[n];
         for (int i = 0; i < n; i++)
         {
-            probs[i] = _trainer!.PredictProbabilities(valEncoded[i].Features);
+            probs[i] = _ovrTrainer != null 
+                ? _ovrTrainer.PredictProbabilities(valEncoded[i].Features) 
+                : _trainer!.PredictProbabilities(valEncoded[i].Features);
             actuals[i] = valEncoded[i].Label;
         }
 
@@ -296,6 +305,165 @@ public sealed class KairosClassifier
             preds[i] = best;
         }
         return MacroF1Metrics.Compute(actuals, preds, ClassCount);
+    }
+
+    /// <summary>
+    /// Fits the model using One-vs-Rest (OvR) binary heads on shared neuromorphic features with validation monitoring.
+    /// </summary>
+    public MacroF1Result FitOvrWithValidation(
+        IReadOnlyList<SignalSample> trainSamples,
+        IReadOnlyList<SignalSample> valSamples,
+        int epochs = 30,
+        double lr = 0.02,
+        int hiddenDim = 32,
+        double weightPower = 0.5,
+        Action<int, int, double, double>? onEpochCompleted = null,
+        bool calibrateThresholds = true)
+    {
+        if (trainSamples == null || trainSamples.Count == 0)
+            throw new ArgumentException("Train samples cannot be empty.", nameof(trainSamples));
+        if (valSamples == null || valSamples.Count == 0)
+            throw new ArgumentException("Validation samples cannot be empty.", nameof(valSamples));
+
+        int maxLabel = Math.Max(trainSamples.Max(s => s.Label), valSamples.Max(s => s.Label));
+        int uniqueLabels = trainSamples.Select(s => s.Label).Union(valSamples.Select(s => s.Label)).Distinct().Count();
+        ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
+
+        int auxCount = 0;
+        if (trainSamples.Count > 0 && trainSamples[0].Values.Length > trainSamples[0].EffectiveLength && trainSamples[0].EffectiveLength > 0)
+        {
+            auxCount = trainSamples[0].Values.Length - trainSamples[0].EffectiveLength;
+        }
+
+        int totalInputDim = _network.TotalFeatures + auxCount;
+        _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+        _trainer = null;
+
+        Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features (OvR Architecture)...");
+        Console.Out.Flush();
+        var encodedTrain = EncodeSamples(trainSamples, auxCount, totalInputDim, "train");
+        var encodedVal = EncodeSamples(valSamples, auxCount, totalInputDim, "val");
+        Console.WriteLine($"[1/2] Feature extraction complete. Feature vector dimension: {totalInputDim}\n");
+        Console.WriteLine($"[2/2] Training {ClassCount} independent OvR binary heads ({epochs} epochs, Adam optimizer)...");
+        Console.Out.Flush();
+
+        var valActuals = valSamples.Select(s => s.Label).ToArray();
+        var valPreds = new int[valSamples.Count];
+
+        int nTrain = encodedTrain.Count;
+        double[] posWeights = new double[ClassCount];
+        for (int c = 0; c < ClassCount; c++)
+        {
+            int pos = 0;
+            for (int i = 0; i < nTrain; i++)
+            {
+                if (encodedTrain[i].Label == c) pos++;
+            }
+            int neg = nTrain - pos;
+            posWeights[c] = pos > 0 ? Math.Pow((double)neg / pos, weightPower) : 1.0;
+        }
+
+        MacroF1Result? bestResult = null;
+        double bestValF1 = -1.0;
+        OvrTrainer? bestCheckpoint = null;
+
+        for (int ep = 1; ep <= epochs; ep++)
+        {
+            _ovrTrainer.TrainEpoch(encodedTrain, posWeights, lr: lr);
+
+            for (int i = 0; i < encodedVal.Count; i++)
+            {
+                var (pred, _) = _ovrTrainer.Predict(encodedVal[i].Features, Thresholds);
+                valPreds[i] = pred;
+            }
+
+            var epochResult = MacroF1Metrics.Compute(valActuals, valPreds, ClassCount);
+            onEpochCompleted?.Invoke(ep, epochs, epochResult.Accuracy, epochResult.MacroF1);
+
+            if (epochResult.MacroF1 > bestValF1)
+            {
+                bestValF1 = epochResult.MacroF1;
+                bestResult = epochResult;
+                bestCheckpoint = CloneOvrTrainer(_ovrTrainer);
+            }
+        }
+
+        if (bestCheckpoint != null)
+        {
+            _ovrTrainer = bestCheckpoint;
+        }
+
+        IsTrained = true;
+
+        if (calibrateThresholds && encodedVal.Count > 0)
+        {
+            Console.WriteLine("\n[3/3] Calibrating decision thresholds across OvR heads to maximize Macro F1...");
+            var calResult = CalibrateThresholds(encodedVal);
+            Console.WriteLine($"  Optimal Thresholds: [{string.Join(", ", Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+            Console.WriteLine($"  Calibrated Validation Macro F1: {calResult.MacroF1:F4} (Accuracy: {calResult.Accuracy * 100:F2}%)\n");
+            Console.Out.Flush();
+            return calResult;
+        }
+
+        return bestResult ?? MacroF1Metrics.Compute(valActuals, valPreds, ClassCount);
+    }
+
+    /// <summary>
+    /// Fits the OvR model on 100% of the training dataset.
+    /// </summary>
+    public void FitOvrFull(
+        IReadOnlyList<SignalSample> trainSamples,
+        int epochs = 28,
+        double lr = 0.02,
+        int hiddenDim = 32,
+        double weightPower = 0.5,
+        double[]? defaultThresholds = null,
+        Action<int, int>? onProgress = null)
+    {
+        if (trainSamples == null || trainSamples.Count == 0)
+            throw new ArgumentException("Train samples cannot be empty.", nameof(trainSamples));
+
+        int maxLabel = trainSamples.Max(s => s.Label);
+        int uniqueLabels = trainSamples.Select(s => s.Label).Distinct().Count();
+        ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
+
+        int auxCount = 0;
+        if (trainSamples.Count > 0 && trainSamples[0].Values.Length > trainSamples[0].EffectiveLength && trainSamples[0].EffectiveLength > 0)
+        {
+            auxCount = trainSamples[0].Values.Length - trainSamples[0].EffectiveLength;
+        }
+
+        int totalInputDim = _network.TotalFeatures + auxCount;
+        _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+        _trainer = null;
+
+        Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features (OvR Full Dataset: {trainSamples.Count:N0} samples)...");
+        Console.Out.Flush();
+        var encodedTrain = EncodeSamples(trainSamples, auxCount, totalInputDim, "full-train");
+        Console.WriteLine($"[1/2] Feature extraction complete. Feature vector dimension: {totalInputDim}\n");
+        Console.WriteLine($"[2/2] Training {ClassCount} independent OvR binary heads on 100% data ({epochs} epochs, Adam optimizer)...");
+        Console.Out.Flush();
+
+        _ovrTrainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, weightPower: weightPower);
+        IsTrained = true;
+
+        Thresholds = defaultThresholds ?? [1.0, 1.0, 1.0, 1.0];
+    }
+
+    private static OvrTrainer CloneOvrTrainer(OvrTrainer src)
+    {
+        var clone = new OvrTrainer(src.ClassCount, src.FeatureDim, src.HiddenDim, src.Seed);
+        for (int c = 0; c < src.ClassCount; c++)
+        {
+            for (int j = 0; j < src.HiddenDim; j++)
+            {
+                Array.Copy(src.W1[c][j], clone.W1[c][j], src.FeatureDim);
+            }
+            Array.Copy(src.B1[c], clone.B1[c], src.HiddenDim);
+            Array.Copy(src.W2[c], clone.W2[c], src.HiddenDim);
+            clone.B2[c] = src.B2[c];
+        }
+        return clone;
     }
 
     private List<(double[] Features, int Label)> EncodeSamples(
@@ -411,11 +579,12 @@ public sealed class KairosClassifier
         int len = effectiveLength > 0 ? effectiveLength : signal.Length;
         var (feats, _) = _network.Forward(signal, len);
 
+        int featDim = _ovrTrainer?.FeatureDim ?? _trainer!.FeatureDim;
         double[] inputFeats = feats;
         int auxCount = signal.Length - len;
-        if (auxCount > 0 && _trainer!.FeatureDim == _network.TotalFeatures + auxCount)
+        if (auxCount > 0 && featDim == _network.TotalFeatures + auxCount)
         {
-            inputFeats = new double[_trainer.FeatureDim];
+            inputFeats = new double[featDim];
             Array.Copy(feats, inputFeats, _network.TotalFeatures);
             for (int a = 0; a < auxCount; a++)
             {
@@ -423,6 +592,10 @@ public sealed class KairosClassifier
             }
         }
 
+        if (_ovrTrainer != null)
+        {
+            return _ovrTrainer.PredictProbabilities(inputFeats);
+        }
         return _trainer!.PredictProbabilities(inputFeats);
     }
 
@@ -437,11 +610,12 @@ public sealed class KairosClassifier
         int len = effectiveLength > 0 ? effectiveLength : signal.Length;
         var (feats, spikes, macs) = _network.ForwardDetailed(signal, len);
 
+        int featDim = _ovrTrainer?.FeatureDim ?? _trainer!.FeatureDim;
         double[] inputFeats = feats;
         int auxCount = signal.Length - len;
-        if (auxCount > 0 && _trainer!.FeatureDim == _network.TotalFeatures + auxCount)
+        if (auxCount > 0 && featDim == _network.TotalFeatures + auxCount)
         {
-            inputFeats = new double[_trainer.FeatureDim];
+            inputFeats = new double[featDim];
             Array.Copy(feats, inputFeats, _network.TotalFeatures);
             for (int a = 0; a < auxCount; a++)
             {
@@ -449,8 +623,13 @@ public sealed class KairosClassifier
             }
         }
 
-        var (pred, accOps) = _trainer!.Predict(inputFeats);
-        return (pred, spikes, macs, accOps, inputFeats);
+        if (_ovrTrainer != null)
+        {
+            var (pred, accOps) = _ovrTrainer.Predict(inputFeats, Thresholds);
+            return (pred, spikes, macs, accOps, inputFeats);
+        }
+        var (predTr, accOpsTr) = _trainer!.Predict(inputFeats);
+        return (predTr, spikes, macs, accOpsTr, inputFeats);
     }
 
     /// <summary>
@@ -524,16 +703,28 @@ public sealed class KairosClassifier
             SubregionCount = SubregionCount,
             Seed = Seed,
             ClassCount = ClassCount,
-            TotalFeatures = _trainer!.FeatureDim,
-            HiddenDim = _trainer.HiddenDim,
-            Weights = _trainer.Weights,
-            Bias = _trainer.Bias,
-            W1 = _trainer.W1,
-            B1 = _trainer.B1,
-            W2 = _trainer.W2,
-            B2 = _trainer.B2,
-            Thresholds = Thresholds
+            TotalFeatures = TotalFeatures,
+            HiddenDim = HiddenDim,
+            Thresholds = Thresholds,
+            IsOvr = IsOvr
         };
+
+        if (IsOvr && _ovrTrainer != null)
+        {
+            meta.OvrW1 = _ovrTrainer.W1;
+            meta.OvrB1 = _ovrTrainer.B1;
+            meta.OvrW2 = _ovrTrainer.W2;
+            meta.OvrB2 = _ovrTrainer.B2;
+        }
+        else if (_trainer != null)
+        {
+            meta.Weights = _trainer.Weights;
+            meta.Bias = _trainer.Bias;
+            meta.W1 = _trainer.W1;
+            meta.B1 = _trainer.B1;
+            meta.W2 = _trainer.W2;
+            meta.B2 = _trainer.B2;
+        }
 
         var options = new JsonSerializerOptions { WriteIndented = true };
         string json = JsonSerializer.Serialize(meta, options);
@@ -559,31 +750,49 @@ public sealed class KairosClassifier
             Thresholds = meta.Thresholds ?? []
         };
 
-        classifier._trainer = new PairwiseTrainer(meta.ClassCount, meta.TotalFeatures, meta.HiddenDim, meta.Seed);
-
-        if (meta.HiddenDim > 0 && meta.W1 != null && meta.W1.Length > 0)
+        if (meta.IsOvr && meta.OvrW1 != null && meta.OvrW1.Length > 0)
         {
-            for (int j = 0; j < meta.HiddenDim; j++)
-            {
-                Array.Copy(meta.W1[j], classifier._trainer.W1[j], meta.TotalFeatures);
-            }
-            if (meta.B1 != null) Array.Copy(meta.B1, classifier._trainer.B1, meta.HiddenDim);
-
+            var ovr = new OvrTrainer(meta.ClassCount, meta.TotalFeatures, meta.HiddenDim, meta.Seed);
             for (int c = 0; c < meta.ClassCount; c++)
             {
-                Array.Copy(meta.W2[c], classifier._trainer.W2[c], meta.HiddenDim);
+                for (int j = 0; j < meta.HiddenDim; j++)
+                {
+                    Array.Copy(meta.OvrW1[c][j], ovr.W1[c][j], meta.TotalFeatures);
+                }
+                Array.Copy(meta.OvrB1[c], ovr.B1[c], meta.HiddenDim);
+                Array.Copy(meta.OvrW2[c], ovr.W2[c], meta.HiddenDim);
+                ovr.B2[c] = meta.OvrB2[c];
             }
-            if (meta.B2 != null) Array.Copy(meta.B2, classifier._trainer.B2, meta.ClassCount);
+            classifier._ovrTrainer = ovr;
         }
-        else if (meta.Weights != null && meta.Weights.Length > 0)
+        else
         {
-            for (int c = 0; c < meta.ClassCount; c++)
+            classifier._trainer = new PairwiseTrainer(meta.ClassCount, meta.TotalFeatures, meta.HiddenDim, meta.Seed);
+
+            if (meta.HiddenDim > 0 && meta.W1 != null && meta.W1.Length > 0)
             {
-                Array.Copy(meta.Weights[c], classifier._trainer.Weights[c], meta.TotalFeatures);
+                for (int j = 0; j < meta.HiddenDim; j++)
+                {
+                    Array.Copy(meta.W1[j], classifier._trainer.W1[j], meta.TotalFeatures);
+                }
+                if (meta.B1 != null) Array.Copy(meta.B1, classifier._trainer.B1, meta.HiddenDim);
+
+                for (int c = 0; c < meta.ClassCount; c++)
+                {
+                    Array.Copy(meta.W2[c], classifier._trainer.W2[c], meta.HiddenDim);
+                }
+                if (meta.B2 != null) Array.Copy(meta.B2, classifier._trainer.B2, meta.ClassCount);
             }
-            if (meta.Bias != null && meta.Bias.Length == meta.ClassCount)
+            else if (meta.Weights != null && meta.Weights.Length > 0)
             {
-                Array.Copy(meta.Bias, classifier._trainer.Bias, meta.ClassCount);
+                for (int c = 0; c < meta.ClassCount; c++)
+                {
+                    Array.Copy(meta.Weights[c], classifier._trainer.Weights[c], meta.TotalFeatures);
+                }
+                if (meta.Bias != null && meta.Bias.Length == meta.ClassCount)
+                {
+                    Array.Copy(meta.Bias, classifier._trainer.Bias, meta.ClassCount);
+                }
             }
         }
 
@@ -592,7 +801,7 @@ public sealed class KairosClassifier
 
     private void EnsureTrained()
     {
-        if (!IsTrained || _trainer == null)
+        if (!IsTrained || (_trainer == null && _ovrTrainer == null))
             throw new InvalidOperationException("The model has not been trained yet. Call Fit() or Load() first.");
     }
 }

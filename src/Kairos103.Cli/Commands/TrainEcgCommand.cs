@@ -23,7 +23,8 @@ public static class TrainEcgCommand
         double weightPower = 0.5,
         bool calibrateThresholds = true,
         bool useOvr = false,
-        double[]? weightPowers = null)
+        double[]? weightPowers = null,
+        int cvFolds = 0)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("          KAIROS103 - KAGGLE ECG ARRHYTHMIA TRAINING PIPELINE             ");
@@ -55,6 +56,13 @@ public static class TrainEcgCommand
         {
             double pct = (double)classCounts[c] / allSamples.Count * 100.0;
             Console.WriteLine($"  Class {classNames[c],-12}: {classCounts[c],7:N0} samples ({pct,5:F2}%)");
+        }
+
+        // K-Fold Cross Validation mode
+        if (cvFolds >= 2)
+        {
+            ExecuteKFoldsOof(allSamples, modelPath, cvFolds, epochs, lr, hiddenDim, subregions, seed, useOvr, weightPower, weightPowers);
+            return;
         }
 
         // Stratified split
@@ -125,7 +133,8 @@ public static class TrainEcgCommand
             ? $"  Readout:    One-vs-Rest Binary Heads ({hiddenDim} hidden neurons/head, Adam optimizer)" 
             : $"  Readout:    2-layer MLP ({hiddenDim} hidden neurons, Adam optimizer)");
         Console.WriteLine($"  Waveform:   Per-beat min-max normalized [0, 1] (patient-independent scale)");
-        Console.WriteLine($"  Auxiliary:  9 relative features (3 rhythm + 6 dimensionless morphological & pause ratios)");
+        Console.WriteLine($"  Auxiliary:  18 relative clinical features (3 rhythm + 6 morphology + 9 electrophysiology & ST-T discordance)");
+        Console.WriteLine($"  Front-End:  4 Anatomical Banks (Global, P-Wave/PR, Central QRS, ST-Segment/T-Wave)");
         Console.WriteLine($"  Optimization Metric: Macro F1 on validation fold\n");
 
         var classifier = new KairosClassifier(subregionCount: subregions, seed: seed);
@@ -233,5 +242,173 @@ public static class TrainEcgCommand
         classifier.Save(modelPath);
         Console.WriteLine($"Model checkpoint successfully saved to: {modelPath}");
         Console.WriteLine("==========================================================================\n");
+    }
+
+    private static void ExecuteKFoldsOof(
+        IReadOnlyList<KaggleEcgSample> allSamples,
+        string modelPath,
+        int cvFolds,
+        int epochs,
+        double lr,
+        int hiddenDim,
+        int subregions,
+        int seed,
+        bool useOvr,
+        double weightPower,
+        double[]? weightPowers)
+    {
+        Console.WriteLine($"\n[K-FOLD CV] Running {cvFolds}-Fold Stratified Cross-Validation (Seed: {seed})...");
+        var folds = KaggleEcgDataset.StratifiedKFolds(allSamples, cvFolds, seed);
+        var oofProbs = new double[allSamples.Count][];
+        var oofActuals = new int[allSamples.Count];
+        var foldModels = new List<string>();
+
+        int oofSampleIdx = 0;
+        double sumValMacroF1 = 0.0;
+
+        for (int fold = 0; fold < cvFolds; fold++)
+        {
+            Console.WriteLine($"\n--------------------------------------------------------------------------");
+            Console.WriteLine($"  FOLD {fold + 1}/{cvFolds} (Val Size: {folds[fold].Count:N0} samples)");
+            Console.WriteLine($"--------------------------------------------------------------------------");
+
+            var valSamplesFold = folds[fold];
+            var trainSamplesFold = folds.Where((_, idx) => idx != fold).SelectMany(f => f).ToList();
+
+            var trainSignals = trainSamplesFold.Select(s => s.ToSignalSample()).ToList();
+            var valSignals = valSamplesFold.Select(s => s.ToSignalSample()).ToList();
+
+            var foldClassifier = new KairosClassifier(subregionCount: subregions, seed: seed + fold);
+
+            string dir = Path.GetDirectoryName(modelPath) ?? "";
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            string foldModelPath = modelPath.EndsWith(".kairos")
+                ? modelPath.Substring(0, modelPath.Length - 7) + $"_fold{fold + 1}.kairos"
+                : $"{modelPath}_fold{fold + 1}.kairos";
+
+            MacroF1Result foldRes;
+            if (useOvr)
+            {
+                foldRes = foldClassifier.FitOvrWithValidation(
+                    trainSignals,
+                    valSignals,
+                    epochs: epochs,
+                    lr: lr,
+                    hiddenDim: hiddenDim,
+                    weightPower: weightPower,
+                    onEpochCompleted: (ep, totalEp, valAcc, valMacroF1) =>
+                    {
+                        if (ep == totalEp || ep % 5 == 0)
+                            Console.WriteLine($"    Epoch [{ep,2}/{totalEp,2}] -> Val Macro F1: {valMacroF1:F4} | Val Acc: {valAcc * 100:F2}%");
+                    },
+                    calibrateThresholds: false,
+                    weightPowers: weightPowers);
+            }
+            else
+            {
+                var weights = KaggleEcgDataset.ComputeBalancedClassWeights(trainSamplesFold, 4, weightPower);
+                foldRes = foldClassifier.FitWithValidation(
+                    trainSignals,
+                    valSignals,
+                    epochs: epochs,
+                    lr: lr,
+                    hiddenDim: hiddenDim,
+                    classWeights: weights,
+                    onEpochCompleted: (ep, totalEp, valAcc, valMacroF1) =>
+                    {
+                        if (ep == totalEp || ep % 5 == 0)
+                            Console.WriteLine($"    Epoch [{ep,2}/{totalEp,2}] -> Val Macro F1: {valMacroF1:F4} | Val Acc: {valAcc * 100:F2}%");
+                    },
+                    calibrateThresholds: false);
+            }
+
+            sumValMacroF1 += foldRes.MacroF1;
+            foldClassifier.Save(foldModelPath);
+            foldModels.Add(foldModelPath);
+            Console.WriteLine($"  Fold {fold + 1} Best Macro F1: {foldRes.MacroF1:F4} (Saved: {foldModelPath})");
+
+            for (int i = 0; i < valSignals.Count; i++)
+            {
+                oofProbs[oofSampleIdx] = foldClassifier.PredictProbabilities(valSignals[i].Values, valSignals[i].EffectiveLength);
+                oofActuals[oofSampleIdx] = valSignals[i].Label;
+                oofSampleIdx++;
+            }
+        }
+
+        double meanFoldF1 = sumValMacroF1 / cvFolds;
+        Console.WriteLine($"\n==========================================================================");
+        Console.WriteLine($"  {cvFolds}-FOLD CV COMPLETE. Mean Fold Macro F1: {meanFoldF1:F4}");
+        Console.WriteLine($"==========================================================================");
+
+        Console.WriteLine("\nCalibrating Global Decision Thresholds on Out-Of-Fold (OOF) Probabilities...");
+        var candidates = new double[] { 0.08, 0.12, 0.18, 0.25, 0.32, 0.40, 0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 1.0, 1.10, 1.25, 1.50, 1.80, 2.20, 2.60, 3.0 };
+        double[] oofThresholds = Enumerable.Repeat(1.0, 4).ToArray();
+        var oofRes = EvaluateProbsWithThresholds(oofProbs, oofActuals, oofThresholds);
+        double bestOofF1 = oofRes.MacroF1;
+        double[] bestThresh = (double[])oofThresholds.Clone();
+
+        for (int iter = 0; iter < 4; iter++)
+        {
+            for (int c = 0; c < 4; c++)
+            {
+                double bestCand = bestThresh[c];
+                foreach (double cand in candidates)
+                {
+                    bestThresh[c] = cand;
+                    var res = EvaluateProbsWithThresholds(oofProbs, oofActuals, bestThresh);
+                    if (res.MacroF1 > bestOofF1)
+                    {
+                        bestOofF1 = res.MacroF1;
+                        bestCand = cand;
+                    }
+                }
+                bestThresh[c] = bestCand;
+            }
+        }
+
+        var finalOofResult = EvaluateProbsWithThresholds(oofProbs, oofActuals, bestThresh);
+        Console.WriteLine($"\nOptimal Out-Of-Fold Thresholds:");
+        Console.WriteLine($"  Thresholds: [{string.Join(", ", bestThresh.Select((t, c) => $"Class {c}={t:F2}"))}]");
+        Console.WriteLine($"  Raw OOF Macro F1 (at 1.0): {oofRes.MacroF1:F4}");
+        Console.WriteLine($"  Calibrated Global OOF Macro F1: {finalOofResult.MacroF1:F4} (Accuracy: {finalOofResult.Accuracy * 100:F2}%)");
+        Console.WriteLine($"\nOOF Full Classification Report:");
+        Console.WriteLine(finalOofResult.FormatReport());
+
+        foreach (var fPath in foldModels)
+        {
+            var mod = KairosClassifier.Load(fPath);
+            mod.Thresholds = bestThresh;
+            mod.Save(fPath);
+        }
+
+        Console.WriteLine($"All {cvFolds} fold models updated with optimal OOF thresholds.");
+        Console.WriteLine($"\nTo generate ensemble submission on test.csv:");
+        Console.WriteLine($"  kairos predict-kaggle --model {string.Join(",", foldModels)} --test test.csv --out submission.csv");
+        Console.WriteLine("==========================================================================\n");
+    }
+
+    private static MacroF1Result EvaluateProbsWithThresholds(double[][] probs, int[] actuals, double[] thresh)
+    {
+        int[] preds = new int[actuals.Length];
+        for (int i = 0; i < actuals.Length; i++)
+        {
+            int best = 0;
+            double bestScore = probs[i][0] / Math.Max(1e-4, thresh[0]);
+            for (int c = 1; c < 4; c++)
+            {
+                double s = probs[i][c] / Math.Max(1e-4, thresh[c]);
+                if (s > bestScore)
+                {
+                    bestScore = s;
+                    best = c;
+                }
+            }
+            preds[i] = best;
+        }
+        return MacroF1Metrics.Compute(actuals, preds, 4);
     }
 }

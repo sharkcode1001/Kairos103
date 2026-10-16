@@ -448,6 +448,7 @@ switch (command)
         bool calibrateThresholds = true;
         bool useOvr = false;
         double[]? weightPowers = null;
+        int cvFolds = 0;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -467,6 +468,8 @@ switch (command)
                 valSplit = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
             else if (args[i] == "--full-train")
                 valSplit = 0.0;
+            else if ((args[i] == "--cv" || args[i] == "--folds") && i + 1 < args.Length)
+                cvFolds = int.Parse(args[++i]);
             else if (args[i] == "--ovr")
                 useOvr = true;
             else if (args[i] == "--seed" && i + 1 < args.Length)
@@ -492,7 +495,7 @@ switch (command)
             break;
         }
 
-        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower, calibrateThresholds, useOvr, weightPowers);
+        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower, calibrateThresholds, useOvr, weightPowers, cvFolds);
         break;
     }
 

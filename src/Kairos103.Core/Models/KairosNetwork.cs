@@ -97,16 +97,37 @@ public sealed class KairosNetwork
             double phase = (double)step / (TotalPhaseSteps - 1);
             for (int m = 0; m < subregionCount; m++)
             {
-                double scaleFraction = 0.08 + (0.18 * (m % 4) / 3.0);
+                // Multi-scale temporal receptive fields across 4 specialized anatomical banks
+                int bank = m % 4;
+                int scaleIdx = (m / 4) % 4;
+                double scaleFraction = 0.06 + (0.12 * (scaleIdx / 3.0));
                 double windowSize = Math.Max(2.0, length * scaleFraction);
-                double phaseAdjusted = (m % 2 == 1)
-                    ? 0.20 + (0.60 * phase)
-                    : phase;
 
+                // Temporal receptive field banks:
+                // Bank 0: Global sweep [0.00, 1.00] - captures rhythm and broad morphology
+                // Bank 1: P-wave / PR interval [0.08, 0.36] - critical for SVEB (atrial depolarization)
+                // Bank 2: Central QRS complex [0.32, 0.66] - critical for VEB and Fusion (ventricular depolarization)
+                // Bank 3: ST segment / T-wave [0.58, 0.90] - critical for repolarization discordance
+                double minPhase = bank switch
+                {
+                    1 => 0.08,
+                    2 => 0.32,
+                    3 => 0.58,
+                    _ => 0.00
+                };
+                double maxPhase = bank switch
+                {
+                    1 => 0.36,
+                    2 => 0.66,
+                    3 => 0.90,
+                    _ => 1.00
+                };
+
+                double phaseAdjusted = minPhase + (phase * (maxPhase - minPhase));
                 double maxStart = Math.Max(0.0, length - windowSize);
-                double windowStart = phaseAdjusted * maxStart;
+                double windowStart = Math.Clamp(phaseAdjusted * maxStart, 0.0, maxStart);
 
-                int offset = (step * subregionCount + m) * FilterPoints;
+                int offset = ((step * subregionCount) + m) * FilterPoints;
                 for (int k = 0; k < FilterPoints; k++)
                 {
                     double samplePos = windowStart + (k * (windowSize - 1.0) / (FilterPoints - 1.0));
@@ -164,19 +185,29 @@ public sealed class KairosNetwork
                 }
                 else
                 {
-                    // Multi-scale temporal receptive fields (8% to 26% for hierarchical resolution)
-                    double scaleFraction = 0.08 + (0.18 * (m % 4) / 3.0);
+                    int bank = m % 4;
+                    int scaleIdx = (m / 4) % 4;
+                    double scaleFraction = 0.06 + (0.12 * (scaleIdx / 3.0));
                     double windowSize = Math.Max(2.0, length * scaleFraction);
 
-                    // Temporal receptive field center:
-                    // Even subregions perform a full global sweep [0, 1]
-                    // Odd subregions concentrate on the central zone [0.20, 0.80] where depolarization (QRS) occurs
-                    double phaseAdjusted = (m % 2 == 1)
-                        ? 0.20 + (0.60 * phase)
-                        : phase;
+                    double minPhase = bank switch
+                    {
+                        1 => 0.08,
+                        2 => 0.32,
+                        3 => 0.58,
+                        _ => 0.00
+                    };
+                    double maxPhase = bank switch
+                    {
+                        1 => 0.36,
+                        2 => 0.66,
+                        3 => 0.90,
+                        _ => 1.00
+                    };
 
+                    double phaseAdjusted = minPhase + (phase * (maxPhase - minPhase));
                     double maxStart = Math.Max(0.0, length - windowSize);
-                    double windowStart = phaseAdjusted * maxStart;
+                    double windowStart = Math.Clamp(phaseAdjusted * maxStart, 0.0, maxStart);
 
                     for (int k = 0; k < FilterPoints; k++)
                     {

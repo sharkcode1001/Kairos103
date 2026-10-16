@@ -176,9 +176,23 @@ public sealed class OvrTrainer
             posWeights[c] = pos > 0 ? Math.Pow((double)neg / pos, wp) : 1.0;
         }
 
+        var rng = new Random(Seed);
+        int[] indices = new int[n];
+        for (int i = 0; i < n; i++) indices[i] = i;
+
         for (int ep = 0; ep < epochs; ep++)
         {
-            TrainEpoch(dataset, posWeights, lr);
+            // Cosine Annealing Learning Rate: smoothly decays from lr down to 0.1 * lr
+            double currentLr = lr * (0.1 + (0.9 * 0.5 * (1.0 + Math.Cos(Math.PI * ep / Math.Max(1, epochs)))));
+
+            // Fisher-Yates per-epoch shuffle to eliminate order-dependent memorization
+            for (int i = n - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                (indices[i], indices[j]) = (indices[j], indices[i]);
+            }
+
+            TrainEpochCore(dataset, indices, posWeights, currentLr);
             onProgress?.Invoke(ep + 1, epochs);
         }
     }
@@ -214,24 +228,49 @@ public sealed class OvrTrainer
     }
 
     /// <summary>
-    /// Executes a single epoch of OvR training (useful for validation checkpointing).
+    /// Executes a single epoch of OvR training with optional index shuffling.
     /// </summary>
     public void TrainEpoch(
         IReadOnlyList<(double[] Features, int Label)> dataset,
         double[] posWeights,
-        double lr = 0.01)
+        double lr = 0.01,
+        Random? rng = null)
     {
         int n = dataset.Count;
+        int[] indices = new int[n];
+        for (int i = 0; i < n; i++) indices[i] = i;
+
+        if (rng != null)
+        {
+            for (int i = n - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                (indices[i], indices[j]) = (indices[j], indices[i]);
+            }
+        }
+
+        TrainEpochCore(dataset, indices, posWeights, lr);
+    }
+
+    private void TrainEpochCore(
+        IReadOnlyList<(double[] Features, int Label)> dataset,
+        int[] indices,
+        double[] posWeights,
+        double lr)
+    {
+        int n = indices.Length;
         const double beta1 = 0.9;
         const double beta2 = 0.999;
         const double eps = 1e-8;
+        const double weightDecay = 1e-5;
 
         double[] h = new double[HiddenDim];
         double[] deltaH = new double[HiddenDim];
         List<int> activeFeatures = new List<int>(64);
 
-        for (int i = 0; i < n; i++)
+        for (int idx = 0; idx < n; idx++)
         {
+            int i = indices[idx];
             var (feats, label) = dataset[i];
             activeFeatures.Clear();
             for (int f = 0; f < FeatureDim; f++)
@@ -290,7 +329,7 @@ public sealed class OvrTrainer
                     double gW2 = gradZ * h[j];
                     mW2c[j] = beta1 * mW2c[j] + (1.0 - beta1) * gW2;
                     vW2c[j] = beta2 * vW2c[j] + (1.0 - beta2) * gW2 * gW2;
-                    w2c[j] -= alpha * mW2c[j] / (Math.Sqrt(vW2c[j]) + eps);
+                    w2c[j] -= (alpha * mW2c[j] / (Math.Sqrt(vW2c[j]) + eps)) + (lr * weightDecay * w2c[j]);
                 }
 
                 var mB1c = _mB1[c];
@@ -315,7 +354,7 @@ public sealed class OvrTrainer
                         double gW1 = dH * feats[f];
                         mW1cj[f] = beta1 * mW1cj[f] + (1.0 - beta1) * gW1;
                         vW1cj[f] = beta2 * vW1cj[f] + (1.0 - beta2) * gW1 * gW1;
-                        w1cj[f] -= alpha * mW1cj[f] / (Math.Sqrt(vW1cj[f]) + eps);
+                        w1cj[f] -= (alpha * mW1cj[f] / (Math.Sqrt(vW1cj[f]) + eps)) + (lr * weightDecay * w1cj[f]);
                     }
                 }
             }

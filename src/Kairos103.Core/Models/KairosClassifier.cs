@@ -369,10 +369,11 @@ public sealed class KairosClassifier
         MacroF1Result? bestResult = null;
         double bestValF1 = -1.0;
         OvrTrainer? bestCheckpoint = null;
-
+        var shuffleRng = new Random(Seed);
         for (int ep = 1; ep <= epochs; ep++)
         {
-            _ovrTrainer.TrainEpoch(encodedTrain, posWeights, lr: lr);
+            double currentLr = lr * (0.1 + (0.9 * 0.5 * (1.0 + Math.Cos(Math.PI * (ep - 1) / Math.Max(1, epochs)))));
+            _ovrTrainer.TrainEpoch(encodedTrain, posWeights, lr: currentLr, rng: shuffleRng);
 
             for (int i = 0; i < encodedVal.Count; i++)
             {

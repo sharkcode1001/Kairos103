@@ -105,10 +105,10 @@ public class KagglePipelineTests
             Assert.Equal(0.85, trainSamples[0].PostRr, 3);
             Assert.Equal(0.96, trainSamples[0].RrRatio, 3);
 
-            // SignalSample must have EffectiveLength = 250 and Total = 259 (250 waveform + 9 aux features)
+            // SignalSample must have EffectiveLength = 250 and Total = 268 (250 waveform + 18 aux features)
             var sigSample = trainSamples[0].ToSignalSample();
             Assert.Equal(250, sigSample.EffectiveLength);
-            Assert.Equal(259, sigSample.Values.Length);
+            Assert.Equal(KaggleEcgSample.TotalLength, sigSample.Values.Length);
             Assert.Equal(0.96, sigSample.Values[252], 3);
 
             // 2. Test LoadTest
@@ -206,8 +206,8 @@ public class KagglePipelineTests
             classifier.Save(tempModel);
             var loaded = KairosClassifier.Load(tempModel);
 
-            // Subregions: 8 * 24 = 192, plus 9 aux features = 201
-            Assert.Equal(201, loaded.TotalFeatures);
+            // Subregions: 8 * 24 = 192, plus 18 aux features = 210
+            Assert.Equal(8 * 24 + KaggleEcgSample.AuxCount, loaded.TotalFeatures);
 
             for (int i = 0; i < val.Count; i++)
             {
@@ -283,5 +283,38 @@ public class KagglePipelineTests
         {
             if (File.Exists(tempModel)) File.Delete(tempModel);
         }
+    }
+
+    [Fact]
+    public void StratifiedKFolds_PartitionsCorrectly_PreservingClassFrequencies()
+    {
+        var samples = new List<KaggleEcgSample>();
+        for (int i = 0; i < 100; i++)
+        {
+            int label = i % 4;
+            double[] wave = new double[250];
+            samples.Add(new KaggleEcgSample($"id_{i}", wave, 0.8, 0.8, 1.0, label));
+        }
+
+        int kFolds = 5;
+        var folds = KaggleEcgDataset.StratifiedKFolds(samples, kFolds, seed: 42);
+
+        Assert.Equal(kFolds, folds.Count);
+        int totalAcrossFolds = 0;
+        foreach (var fold in folds)
+        {
+            Assert.Equal(20, fold.Count);
+            totalAcrossFolds += fold.Count;
+
+            // Each fold should have equal class representation (5 samples per class)
+            var classCounts = fold.GroupBy(s => s.Label).ToDictionary(g => g.Key, g => g.Count());
+            Assert.Equal(4, classCounts.Count);
+            foreach (var kvp in classCounts)
+            {
+                Assert.Equal(5, kvp.Value);
+            }
+        }
+
+        Assert.Equal(100, totalAcrossFolds);
     }
 }

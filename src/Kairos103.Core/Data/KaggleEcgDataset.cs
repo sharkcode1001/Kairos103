@@ -15,13 +15,14 @@ public sealed record KaggleEcgSample(
     int Label)
 {
     public const int WaveformLength = 250;
-    public const int AuxCount = 9;
+    public const int AuxCount = 18;
     public const int TotalLength = WaveformLength + AuxCount;
 
     /// <summary>
-    /// Combines the normalized 250 waveform samples followed by 9 patient-independent relative features into a single continuous vector:
-    /// [0..2]: pre_rr, post_rr, rr_ratio (rhythm)
+    /// Combines the normalized 250 waveform samples followed by 18 patient-independent relative clinical features into a single continuous vector:
+    /// [0..2]: pre_rr, post_rr, rr_ratio (cardiac rhythm)
     /// [3..8]: prematurity_index, compensatory_pause, rel_qrs_energy, rel_qrs_p2p, rel_qrs_width, qrs_asymmetry (relative morphology)
+    /// [9..17]: norm_baseline, qrs_polarity, t_polarity, stt_discordance, max_pos_slope, max_neg_slope, slope_ratio, rel_p_energy, t_to_qrs_ratio (clinical electrophysiology)
     /// </summary>
     public double[] ToCombinedSignal()
     {
@@ -48,6 +49,21 @@ public sealed record KaggleEcgSample(
             combined[i] = (Waveform[i] - offset) * invP2p;
         }
 
+        // Isoelectric baseline reference (mean of beat outer boundaries [0..15] and [234..249])
+        double baselineSum = 0.0;
+        int baselineCount = 0;
+        for (int i = 0; i < Math.Min(16, waveLen); i++)
+        {
+            baselineSum += Waveform[i];
+            baselineCount++;
+        }
+        for (int i = Math.Max(0, waveLen - 16); i < waveLen; i++)
+        {
+            baselineSum += Waveform[i];
+            baselineCount++;
+        }
+        double isoelectricBaseline = baselineCount > 0 ? baselineSum / baselineCount : 0.0;
+
         // Aux 0..2: Rhythm features
         combined[WaveformLength] = PreRr;
         combined[WaveformLength + 1] = PostRr;
@@ -63,6 +79,7 @@ public sealed record KaggleEcgSample(
         double qrsSq = 0.0;
         double qrsAbsMax = 0.0;
         int peakIdx = qrsStart;
+        double qrsNetSum = 0.0;
 
         for (int i = qrsStart; i < qrsEnd; i++)
         {
@@ -70,6 +87,7 @@ public sealed record KaggleEcgSample(
             if (v > qrsMax) qrsMax = v;
             if (v < qrsMin) qrsMin = v;
             qrsSq += v * v;
+            qrsNetSum += (v - isoelectricBaseline);
             double absV = Math.Abs(v);
             if (absV > qrsAbsMax)
             {
@@ -91,6 +109,41 @@ public sealed record KaggleEcgSample(
             }
         }
 
+        // T-wave zone: samples 165 to 225 (ventricular repolarization window)
+        int tStart = Math.Min(165, Math.Max(0, waveLen - 1));
+        int tEnd = Math.Min(225, waveLen);
+        double tNetSum = 0.0;
+        double tMax = double.NegativeInfinity, tMin = double.PositiveInfinity;
+        for (int i = tStart; i < tEnd; i++)
+        {
+            double v = Waveform[i];
+            tNetSum += (v - isoelectricBaseline);
+            if (v > tMax) tMax = v;
+            if (v < tMin) tMin = v;
+        }
+        double tP2p = (tMax > tMin) ? tMax - tMin : 0.0;
+
+        // P-wave zone: samples 25 to 85 (atrial depolarization window)
+        int pStart = Math.Min(25, Math.Max(0, waveLen - 1));
+        int pEnd = Math.Min(85, waveLen);
+        double pSq = 0.0;
+        for (int i = pStart; i < pEnd; i++)
+        {
+            double diff = Waveform[i] - isoelectricBaseline;
+            pSq += diff * diff;
+        }
+        double pEnergy = (pEnd > pStart) ? pSq / (pEnd - pStart) : 0.0;
+
+        // QRS slopes
+        double maxPosSlope = 0.0;
+        double maxNegSlope = 0.0;
+        for (int i = qrsStart + 1; i < qrsEnd - 1; i++)
+        {
+            double slope = (Waveform[i + 1] - Waveform[i - 1]) / (2.0 * Math.Max(1e-4, p2p));
+            if (slope > maxPosSlope) maxPosSlope = slope;
+            if (-slope > maxNegSlope) maxNegSlope = -slope;
+        }
+
         // Relative features bounded in [0, 1]
         double prematurityIndex = (PreRr + PostRr > 1e-4)
             ? 0.5 * (Math.Clamp((PreRr - PostRr) / (PreRr + PostRr), -1.0, 1.0) + 1.0)
@@ -101,12 +154,38 @@ public sealed record KaggleEcgSample(
         double relQrsWidth = Math.Clamp(qrsWidthCount / 25.0, 0.0, 1.0);
         double qrsAsymmetry = (qrsEnd > qrsStart) ? (double)(peakIdx - qrsStart) / (qrsEnd - qrsStart) : 0.5;
 
+        // Clinical electrophysiology features [9..17]
+        double normBaseline = Math.Clamp((isoelectricBaseline - offset) * invP2p, 0.0, 1.0);
+        double qrsNetMean = (qrsEnd > qrsStart) ? qrsNetSum / ((qrsEnd - qrsStart) * Math.Max(1e-4, p2p)) : 0.0;
+        double qrsPolarity = Math.Clamp(0.5 * ((qrsNetMean * 3.0) + 1.0), 0.0, 1.0);
+
+        double tNetMean = (tEnd > tStart) ? tNetSum / ((tEnd - tStart) * Math.Max(1e-4, p2p)) : 0.0;
+        double tPolarity = Math.Clamp(0.5 * ((tNetMean * 3.0) + 1.0), 0.0, 1.0);
+
+        // ST-T Discordance: discordant repolarization (opposite signs) yields high value > 0.5
+        double sttDiscordance = Math.Clamp(0.5 * (1.0 - (qrsNetMean * tNetMean * 20.0)), 0.0, 1.0);
+
+        double normMaxPosSlope = Math.Clamp(maxPosSlope * 4.0, 0.0, 1.0);
+        double normMaxNegSlope = Math.Clamp(maxNegSlope * 4.0, 0.0, 1.0);
+        double slopeRatio = (maxPosSlope + maxNegSlope > 1e-6) ? maxPosSlope / (maxPosSlope + maxNegSlope) : 0.5;
+        double relPwaveEnergy = totalEnergy > 1e-6 ? Math.Clamp(pEnergy / totalEnergy * 5.0, 0.0, 1.0) : 0.0;
+        double tToQrsRatio = Math.Clamp(tP2p / Math.Max(1e-4, qrsP2p), 0.0, 1.0);
+
         combined[WaveformLength + 3] = prematurityIndex;
         combined[WaveformLength + 4] = compensatoryPause;
         combined[WaveformLength + 5] = relQrsEnergy;
         combined[WaveformLength + 6] = relQrsP2p;
         combined[WaveformLength + 7] = relQrsWidth;
         combined[WaveformLength + 8] = qrsAsymmetry;
+        combined[WaveformLength + 9] = normBaseline;
+        combined[WaveformLength + 10] = qrsPolarity;
+        combined[WaveformLength + 11] = tPolarity;
+        combined[WaveformLength + 12] = sttDiscordance;
+        combined[WaveformLength + 13] = normMaxPosSlope;
+        combined[WaveformLength + 14] = normMaxNegSlope;
+        combined[WaveformLength + 15] = slopeRatio;
+        combined[WaveformLength + 16] = relPwaveEnergy;
+        combined[WaveformLength + 17] = tToQrsRatio;
 
         return combined;
     }
@@ -219,6 +298,36 @@ public static class KaggleEcgDataset
         Shuffle(valList, rng);
 
         return (trainList, valList);
+    }
+
+    /// <summary>
+    /// Partitions samples into K stratified folds preserving class distribution across each fold.
+    /// </summary>
+    public static List<List<KaggleEcgSample>> StratifiedKFolds(IReadOnlyList<KaggleEcgSample> samples, int kFolds = 5, int seed = 42)
+    {
+        if (kFolds < 2) throw new ArgumentOutOfRangeException(nameof(kFolds), "kFolds must be >= 2");
+        var folds = new List<List<KaggleEcgSample>>(kFolds);
+        for (int k = 0; k < kFolds; k++) folds.Add(new List<KaggleEcgSample>());
+
+        var groups = samples.GroupBy(s => s.Label).ToDictionary(g => g.Key, g => g.ToList());
+        var rng = new Random(seed);
+
+        foreach (var kvp in groups)
+        {
+            var list = kvp.Value;
+            Shuffle(list, rng);
+            for (int i = 0; i < list.Count; i++)
+            {
+                folds[i % kFolds].Add(list[i]);
+            }
+        }
+
+        for (int k = 0; k < kFolds; k++)
+        {
+            Shuffle(folds[k], rng);
+        }
+
+        return folds;
     }
 
     /// <summary>

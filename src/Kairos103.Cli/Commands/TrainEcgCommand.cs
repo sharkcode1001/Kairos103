@@ -105,11 +105,13 @@ public static class TrainEcgCommand
         {
             if (weightPowers != null && weightPowers.Length == 4)
             {
+                classWeights = new double[4];
                 Console.WriteLine($"\nAsymmetric Class Loss Weights (Powers: [{string.Join(", ", weightPowers.Select(p => p.ToString("F2", CultureInfo.InvariantCulture)))}]):");
                 for (int c = 0; c < 4; c++)
                 {
                     var w = KaggleEcgDataset.ComputeBalancedClassWeights(trainSamples, 4, weightPowers[c]);
-                    Console.WriteLine($"  Class {c}: {w[c]:F3}");
+                    classWeights[c] = w[c];
+                    Console.WriteLine($"  Class {c}: {classWeights[c]:F3}");
                 }
             }
             else
@@ -310,7 +312,7 @@ public static class TrainEcgCommand
                         if (ep == totalEp || ep % 5 == 0)
                             Console.WriteLine($"    Epoch [{ep,2}/{totalEp,2}] -> Val Macro F1: {valMacroF1:F4} | Val Acc: {valAcc * 100:F2}%");
                     },
-                    calibrateThresholds: false,
+                    calibrateThresholds: true,
                     weightPowers: weightPowers);
             }
             else
@@ -328,7 +330,7 @@ public static class TrainEcgCommand
                         if (ep == totalEp || ep % 5 == 0)
                             Console.WriteLine($"    Epoch [{ep,2}/{totalEp,2}] -> Val Macro F1: {valMacroF1:F4} | Val Acc: {valAcc * 100:F2}%");
                     },
-                    calibrateThresholds: false);
+                    calibrateThresholds: true);
             }
 
             sumValMacroF1 += foldRes.MacroF1;

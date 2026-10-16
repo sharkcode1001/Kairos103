@@ -138,6 +138,13 @@ public static class PredictKaggleCommand
                     }
                 }
 
+                // Normalize accumulated probabilities to [0, 1] range
+                double invM = 1.0 / classifiers.Count;
+                for (int c = 0; c < 4; c++)
+                {
+                    ensembleProbs[c] *= invM;
+                }
+
                 int best = 0;
                 double bestScore = ensembleProbs[0] / Math.Max(1e-4, activeThresholds[0]);
                 for (int c = 1; c < 4; c++)
@@ -210,6 +217,8 @@ public static class PredictKaggleCommand
         }
 
         int count = 0;
+        var seenIds = new HashSet<string>(expectedRows);
+        int[] classCounts = new int[4];
         string? line;
         while ((line = reader.ReadLine()) != null)
         {
@@ -221,10 +230,17 @@ public static class PredictKaggleCommand
                 throw new InvalidOperationException($"Row {count + 1} has {parts.Length} columns. Expected exactly 2 (id,label). Line: '{line}'");
             }
 
+            string id = parts[0].Trim();
+            if (!seenIds.Add(id))
+            {
+                throw new InvalidOperationException($"Duplicate sample ID detected at row {count + 1}: '{id}'");
+            }
+
             if (!int.TryParse(parts[1].Trim(), out int label) || label < 0 || label > 3)
             {
                 throw new InvalidOperationException($"Row {count + 1} has invalid label value '{parts[1]}'. Must be integer 0, 1, 2, or 3.");
             }
+            classCounts[label]++;
         }
 
         if (count != expectedRows)
@@ -232,6 +248,14 @@ public static class PredictKaggleCommand
             throw new InvalidOperationException($"Row count mismatch in submission! Expected {expectedRows} rows, but file has {count} rows.");
         }
 
-        Console.WriteLine($"  Validation passed! Header is 'id,label', exactly {count:N0} rows, all labels in [0, 3].");
+        for (int c = 0; c < 4; c++)
+        {
+            if (classCounts[c] == 0)
+            {
+                Console.WriteLine($"  [WARNING] Class {c} has 0 predicted samples in submission! Review thresholds to avoid Macro F1 collapse.");
+            }
+        }
+
+        Console.WriteLine($"  Validation passed! Header is 'id,label', exactly {count:N0} unique IDs, all labels in [0, 3].");
     }
 }

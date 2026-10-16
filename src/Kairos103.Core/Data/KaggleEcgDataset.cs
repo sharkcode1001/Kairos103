@@ -77,9 +77,10 @@ public sealed record KaggleEcgSample(
         int qrsEnd = Math.Min(165, waveLen);
         double qrsMax = double.NegativeInfinity, qrsMin = double.PositiveInfinity;
         double qrsSq = 0.0;
-        double qrsAbsMax = 0.0;
+        double qrsAbsMaxDev = 0.0;
         int peakIdx = qrsStart;
         double qrsNetSum = 0.0;
+        double qrsAbsArea = 0.0;
 
         for (int i = qrsStart; i < qrsEnd; i++)
         {
@@ -87,11 +88,15 @@ public sealed record KaggleEcgSample(
             if (v > qrsMax) qrsMax = v;
             if (v < qrsMin) qrsMin = v;
             qrsSq += v * v;
-            qrsNetSum += (v - isoelectricBaseline);
-            double absV = Math.Abs(v);
-            if (absV > qrsAbsMax)
+            
+            double dev = v - isoelectricBaseline;
+            qrsNetSum += dev;
+            double absDev = Math.Abs(dev);
+            qrsAbsArea += absDev;
+
+            if (absDev > qrsAbsMaxDev)
             {
-                qrsAbsMax = absV;
+                qrsAbsMaxDev = absDev;
                 peakIdx = i; // Accurately captures depolarization peak for both positive R and negative QS waves
             }
         }
@@ -99,13 +104,14 @@ public sealed record KaggleEcgSample(
         double qrsP2p = (qrsMax > qrsMin) ? qrsMax - qrsMin : 0.0;
         double qrsEnergy = (qrsEnd > qrsStart) ? qrsSq / (qrsEnd - qrsStart) : 0.0;
 
+        // Clean Full Width at Half Maximum (FWHM) centered at isoelectric baseline (AUC = 0.8879)
         int qrsWidthCount = 0;
-        double halfPeak = 0.5 * qrsAbsMax;
+        double halfPeak = 0.5 * qrsAbsMaxDev;
         if (halfPeak > 1e-4)
         {
             for (int i = qrsStart; i < qrsEnd; i++)
             {
-                if (Math.Abs(Waveform[i]) >= halfPeak) qrsWidthCount++;
+                if (Math.Abs(Waveform[i] - isoelectricBaseline) >= halfPeak) qrsWidthCount++;
             }
         }
 
@@ -149,9 +155,9 @@ public sealed record KaggleEcgSample(
             ? 0.5 * (Math.Clamp((PreRr - PostRr) / (PreRr + PostRr), -1.0, 1.0) + 1.0)
             : 0.5;
         double compensatoryPause = 0.5 * (Math.Clamp((PostRr - PreRr) / Math.Max(1e-4, PreRr) / 2.0, -1.0, 1.0) + 1.0);
-        double relQrsEnergy = totalEnergy > 1e-6 ? Math.Clamp(qrsEnergy / totalEnergy, 0.0, 1.0) : 0.0;
+        double relQrsAbsArea = p2p > 1e-6 ? Math.Clamp(qrsAbsArea / ((qrsEnd - qrsStart) * p2p * 0.35), 0.0, 1.0) : 0.0;
         double relQrsP2p = p2p > 1e-6 ? Math.Clamp(qrsP2p / p2p, 0.0, 1.0) : 0.0;
-        double relQrsWidth = Math.Clamp(qrsWidthCount / 25.0, 0.0, 1.0);
+        double relQrsWidth = Math.Clamp(qrsWidthCount / 35.0, 0.0, 1.0);
         double qrsAsymmetry = (qrsEnd > qrsStart) ? (double)(peakIdx - qrsStart) / (qrsEnd - qrsStart) : 0.5;
 
         // Clinical electrophysiology features [9..17]
@@ -173,7 +179,7 @@ public sealed record KaggleEcgSample(
 
         combined[WaveformLength + 3] = prematurityIndex;
         combined[WaveformLength + 4] = compensatoryPause;
-        combined[WaveformLength + 5] = relQrsEnergy;
+        combined[WaveformLength + 5] = relQrsAbsArea;
         combined[WaveformLength + 6] = relQrsP2p;
         combined[WaveformLength + 7] = relQrsWidth;
         combined[WaveformLength + 8] = qrsAsymmetry;

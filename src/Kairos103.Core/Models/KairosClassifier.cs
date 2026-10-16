@@ -24,7 +24,7 @@ public sealed class KairosModelMetadata
 {
     public string Architecture { get; set; } = "Kairos103";
     public string Version { get; set; } = "1.1.0";
-    public int AuxVersion { get; set; } = 2;
+    public int AuxVersion { get; set; } = 3;
     public int SubregionCount { get; set; }
     public int Seed { get; set; }
     public int ClassCount { get; set; }
@@ -582,8 +582,16 @@ public sealed class KairosClassifier
         int featDim = _ovrTrainer?.FeatureDim ?? _trainer!.FeatureDim;
         double[] inputFeats = feats;
         int auxCount = signal.Length - len;
-        if (auxCount > 0 && featDim == _network.TotalFeatures + auxCount)
+        if (auxCount > 0)
         {
+            if (featDim != _network.TotalFeatures + auxCount)
+            {
+                throw new InvalidOperationException(
+                    $"Feature dimension mismatch! Model expects {featDim} features " +
+                    $"({_network.TotalFeatures} neuromorphic + {featDim - _network.TotalFeatures} aux), " +
+                    $"but input signal provided {auxCount} auxiliary features (Total: {_network.TotalFeatures + auxCount}).");
+            }
+
             inputFeats = new double[featDim];
             Array.Copy(feats, inputFeats, _network.TotalFeatures);
             for (int a = 0; a < auxCount; a++)
@@ -707,7 +715,7 @@ public sealed class KairosClassifier
             HiddenDim = HiddenDim,
             Thresholds = Thresholds,
             IsOvr = IsOvr,
-            AuxVersion = 2
+            AuxVersion = 3
         };
 
         if (IsOvr && _ovrTrainer != null)
@@ -751,9 +759,9 @@ public sealed class KairosClassifier
             Thresholds = meta.Thresholds ?? []
         };
 
-        if (meta.AuxVersion < 2)
+        if (meta.AuxVersion < 3)
         {
-            Console.WriteLine($"  [WARNING] Model was trained with legacy AuxVersion {meta.AuxVersion}. Runtime uses AuxVersion 2.");
+            Console.WriteLine($"  [WARNING] Model was trained with legacy AuxVersion {meta.AuxVersion}. Runtime uses AuxVersion 3.");
         }
 
         if (meta.IsOvr && meta.OvrW1 != null && meta.OvrW1.Length > 0)

@@ -15,14 +15,15 @@ public sealed record KaggleEcgSample(
     int Label)
 {
     public const int WaveformLength = 250;
-    public const int AuxCount = 18;
+    public const int AuxCount = 22;
     public const int TotalLength = WaveformLength + AuxCount;
 
     /// <summary>
-    /// Combines the normalized 250 waveform samples followed by 18 patient-independent relative clinical features into a single continuous vector:
+    /// Combines the normalized 250 waveform samples followed by 22 patient-independent relative clinical features into a single continuous vector:
     /// [0..2]: pre_rr, post_rr, rr_ratio (cardiac rhythm)
     /// [3..8]: prematurity_index, compensatory_pause, rel_qrs_energy, rel_qrs_p2p, rel_qrs_width, qrs_asymmetry (relative morphology)
     /// [9..17]: norm_baseline, qrs_polarity, t_polarity, stt_discordance, max_pos_slope, max_neg_slope, slope_ratio, rel_p_energy, t_to_qrs_ratio (clinical electrophysiology)
+    /// [18..21]: qrs_notching, qrs_base_width, p_wave_prominence, p_to_r_latency (advanced electrophysiology & atrial conduction)
     /// </summary>
     public double[] ToCombinedSignal()
     {
@@ -192,6 +193,88 @@ public sealed record KaggleEcgSample(
         combined[WaveformLength + 15] = slopeRatio;
         combined[WaveformLength + 16] = relPwaveEnergy;
         combined[WaveformLength + 17] = tToQrsRatio;
+
+        // CR-A1: QRS Notching (number of derivative sign reversals with hysteresis)
+        int qrsLength = qrsEnd - qrsStart;
+        double qrsNotching = 0.0;
+        if (qrsLength >= 4)
+        {
+            Span<double> d = stackalloc double[qrsLength - 1];
+            for (int i = 0; i < qrsLength - 1; i++)
+            {
+                d[i] = Waveform[qrsStart + i + 1] - Waveform[qrsStart + i];
+            }
+
+            Span<double> dSmooth = stackalloc double[qrsLength - 1];
+            double maxAbsD = 0.0;
+            for (int i = 0; i < qrsLength - 1; i++)
+            {
+                double prev = i > 0 ? d[i - 1] : d[i];
+                double next = i < qrsLength - 2 ? d[i + 1] : d[i];
+                double sm = (prev + d[i] + next) / 3.0;
+                dSmooth[i] = sm;
+                double absSm = Math.Abs(sm);
+                if (absSm > maxAbsD) maxAbsD = absSm;
+            }
+
+            double hystThresh = 0.10 * maxAbsD;
+            int signChanges = 0;
+            int lastSign = 0;
+
+            for (int i = 0; i < qrsLength - 1; i++)
+            {
+                if (Math.Abs(dSmooth[i]) >= hystThresh)
+                {
+                    int currentSign = dSmooth[i] > 0 ? 1 : -1;
+                    if (lastSign != 0 && currentSign != lastSign)
+                    {
+                        signChanges++;
+                    }
+                    lastSign = currentSign;
+                }
+            }
+
+            qrsNotching = Math.Clamp(signChanges / 6.0, 0.0, 1.0);
+        }
+
+        // CR-A2: QRS Base Width at low threshold (15% of peak deviation from baseline)
+        int qrsBaseWidthCount = 0;
+        double baseThresh = 0.15 * qrsAbsMaxDev;
+        if (baseThresh > 1e-4)
+        {
+            for (int i = qrsStart; i < qrsEnd; i++)
+            {
+                if (Math.Abs(Waveform[i] - isoelectricBaseline) >= baseThresh)
+                {
+                    qrsBaseWidthCount++;
+                }
+            }
+        }
+        double qrsBaseWidth = Math.Clamp(qrsBaseWidthCount / 60.0, 0.0, 1.0);
+
+        // CR-A3: P-wave prominence and P-to-R latency in atrial window [pStart..pEnd]
+        int pPeakIdx = pStart;
+        double pMaxDev = 0.0;
+        for (int i = pStart; i < pEnd; i++)
+        {
+            double absDev = Math.Abs(Waveform[i] - isoelectricBaseline);
+            if (absDev > pMaxDev)
+            {
+                pMaxDev = absDev;
+                pPeakIdx = i;
+            }
+        }
+
+        double pNetDev = Waveform[pPeakIdx] - isoelectricBaseline;
+        double pWaveProminence = (qrsAbsMaxDev > 1e-4)
+            ? 0.5 * (Math.Clamp((pNetDev / qrsAbsMaxDev) * 3.0, -1.0, 1.0) + 1.0)
+            : 0.5;
+        double pToRLatency = Math.Clamp((peakIdx - pPeakIdx) / 60.0, 0.0, 1.0);
+
+        combined[WaveformLength + 18] = qrsNotching;
+        combined[WaveformLength + 19] = qrsBaseWidth;
+        combined[WaveformLength + 20] = pWaveProminence;
+        combined[WaveformLength + 21] = pToRLatency;
 
         return combined;
     }

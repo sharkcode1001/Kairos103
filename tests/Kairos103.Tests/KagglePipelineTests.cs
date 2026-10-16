@@ -105,11 +105,17 @@ public class KagglePipelineTests
             Assert.Equal(0.85, trainSamples[0].PostRr, 3);
             Assert.Equal(0.96, trainSamples[0].RrRatio, 3);
 
-            // SignalSample must have EffectiveLength = 250 and Total = 268 (250 waveform + 18 aux features)
+            // SignalSample must have EffectiveLength = 250 and Total = 272 (250 waveform + 22 aux features)
             var sigSample = trainSamples[0].ToSignalSample();
             Assert.Equal(250, sigSample.EffectiveLength);
             Assert.Equal(KaggleEcgSample.TotalLength, sigSample.Values.Length);
             Assert.Equal(0.96, sigSample.Values[252], 3);
+
+            // Verify new clinical features are bounded in [0, 1]
+            Assert.InRange(sigSample.Values[250 + 18], 0.0, 1.0); // qrsNotching
+            Assert.InRange(sigSample.Values[250 + 19], 0.0, 1.0); // qrsBaseWidth
+            Assert.InRange(sigSample.Values[250 + 20], 0.0, 1.0); // pWaveProminence
+            Assert.InRange(sigSample.Values[250 + 21], 0.0, 1.0); // pToRLatency
 
             // 2. Test LoadTest
             var testSamples = KaggleEcgDataset.LoadTest(testCsv);

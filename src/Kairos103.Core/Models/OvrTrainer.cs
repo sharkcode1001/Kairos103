@@ -24,7 +24,6 @@ public sealed class OvrTrainer
     private readonly double[][] _mW2, _vW2;
     private readonly double[] _mB2, _vB2;
     private readonly int[] _adamStep;
-    private readonly Random _dropoutRng;
 
     public OvrTrainer(int classCount, int featureDim, int hiddenDim = 32, int seed = 42)
     {
@@ -32,7 +31,6 @@ public sealed class OvrTrainer
         FeatureDim = featureDim;
         HiddenDim = hiddenDim;
         Seed = seed;
-        _dropoutRng = new Random(seed + 101);
 
         W1 = new double[classCount][][];
         B1 = new double[classCount][];
@@ -264,9 +262,7 @@ public sealed class OvrTrainer
         const double beta1 = 0.9;
         const double beta2 = 0.999;
         const double eps = 1e-8;
-        const double weightDecay = 5e-4;
-        const double dropoutRate = 0.15;
-        const double dropoutScale = 1.0 / (1.0 - dropoutRate);
+        const double weightDecay = 1e-5;
 
         double[] h = new double[HiddenDim];
         double[] deltaH = new double[HiddenDim];
@@ -302,8 +298,7 @@ public sealed class OvrTrainer
                         int f = activeFeatures[k];
                         sum += w1cj[f] * feats[f];
                     }
-                    double act = sum > 0.0 ? sum : 0.0;
-                    h[j] = (_dropoutRng.NextDouble() >= dropoutRate) ? act * dropoutScale : 0.0;
+                    h[j] = sum > 0.0 ? sum : 0.0;
                     z += w2c[j] * h[j];
                 }
 
@@ -312,7 +307,7 @@ public sealed class OvrTrainer
 
                 for (int j = 0; j < HiddenDim; j++)
                 {
-                    deltaH[j] = (h[j] > 0.0) ? gradZ * w2c[j] * dropoutScale : 0.0;
+                    deltaH[j] = (h[j] > 0.0) ? gradZ * w2c[j] : 0.0;
                 }
 
                 _adamStep[c]++;

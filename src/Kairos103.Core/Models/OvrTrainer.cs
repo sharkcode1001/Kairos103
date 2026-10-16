@@ -89,11 +89,11 @@ public sealed class OvrTrainer
     public double[] PredictProbabilities(ReadOnlySpan<double> features)
     {
         double[] probs = new double[ClassCount];
-        Span<int> active = stackalloc int[Math.Min(FeatureDim, 512)];
+        Span<int> active = stackalloc int[FeatureDim];
         int activeCount = 0;
         for (int f = 0; f < features.Length; f++)
         {
-            if (features[f] != 0.0 && activeCount < active.Length)
+            if (features[f] != 0.0)
             {
                 active[activeCount++] = f;
             }

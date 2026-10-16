@@ -35,15 +35,12 @@ public sealed class ModularSubregion
         {
             if (_neurons[i].Integrate(currents[i], timestamp))
             {
-                // Dynamic current-dependent lateral inhibition:
-                // Depolarization waves with high amplitude/steep slope exert stronger inhibition on peer neurons,
-                // sharpening temporal latency separation without causing combinatorial collapse.
-                double dynamicBoost = _lateralInhibitionBoost * (1.0 + Math.Min(2.0, Math.Max(0.0, currents[i] - 1.0)));
+                // Lateral inhibition to remaining neurons in subregion
                 for (int j = 0; j < SubregionSize; j++)
                 {
                     if (i != j && !_neurons[j].HasFired)
                     {
-                        _neurons[j].Inhibit(dynamicBoost);
+                        _neurons[j].Inhibit(_lateralInhibitionBoost);
                     }
                 }
             }

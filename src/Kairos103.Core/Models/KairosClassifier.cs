@@ -24,6 +24,7 @@ public sealed class KairosModelMetadata
 {
     public string Architecture { get; set; } = "Kairos103";
     public string Version { get; set; } = "1.1.0";
+    public int AuxVersion { get; set; } = 2;
     public int SubregionCount { get; set; }
     public int Seed { get; set; }
     public int ClassCount { get; set; }
@@ -705,7 +706,8 @@ public sealed class KairosClassifier
             TotalFeatures = TotalFeatures,
             HiddenDim = HiddenDim,
             Thresholds = Thresholds,
-            IsOvr = IsOvr
+            IsOvr = IsOvr,
+            AuxVersion = 2
         };
 
         if (IsOvr && _ovrTrainer != null)
@@ -748,6 +750,11 @@ public sealed class KairosClassifier
             IsTrained = true,
             Thresholds = meta.Thresholds ?? []
         };
+
+        if (meta.AuxVersion < 2)
+        {
+            Console.WriteLine($"  [WARNING] Model was trained with legacy AuxVersion {meta.AuxVersion}. Runtime uses AuxVersion 2.");
+        }
 
         if (meta.IsOvr && meta.OvrW1 != null && meta.OvrW1.Length > 0)
         {

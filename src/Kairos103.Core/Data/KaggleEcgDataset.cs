@@ -155,9 +155,9 @@ public sealed record KaggleEcgSample(
             ? 0.5 * (Math.Clamp((PreRr - PostRr) / (PreRr + PostRr), -1.0, 1.0) + 1.0)
             : 0.5;
         double compensatoryPause = 0.5 * (Math.Clamp((PostRr - PreRr) / Math.Max(1e-4, PreRr) / 2.0, -1.0, 1.0) + 1.0);
-        double relQrsAbsArea = p2p > 1e-6 ? Math.Clamp(qrsAbsArea / ((qrsEnd - qrsStart) * p2p * 0.35), 0.0, 1.0) : 0.0;
+        double relQrsAbsArea = p2p > 1e-6 ? Math.Clamp(qrsAbsArea / ((qrsEnd - qrsStart) * Math.Max(1e-4, p2p)), 0.0, 1.0) : 0.0;
         double relQrsP2p = p2p > 1e-6 ? Math.Clamp(qrsP2p / p2p, 0.0, 1.0) : 0.0;
-        double relQrsWidth = Math.Clamp(qrsWidthCount / 35.0, 0.0, 1.0);
+        double relQrsWidth = Math.Clamp(qrsWidthCount / 40.0, 0.0, 1.0);
         double qrsAsymmetry = (qrsEnd > qrsStart) ? (double)(peakIdx - qrsStart) / (qrsEnd - qrsStart) : 0.5;
 
         // Clinical electrophysiology features [9..17]

@@ -241,6 +241,11 @@ public static class TrainEcgCommand
 
         classifier.Save(modelPath);
         Console.WriteLine($"Model checkpoint successfully saved to: {modelPath}");
+
+        // Run ECG Diagnostics (CR-D1)
+        EcgDiagnostics.ReportRPeakPlacement(allSamples);
+        EcgDiagnostics.ReportTemplateSeparability(allSamples);
+
         Console.WriteLine("==========================================================================\n");
     }
 
@@ -388,6 +393,11 @@ public static class TrainEcgCommand
         Console.WriteLine($"All {cvFolds} fold models updated with optimal OOF thresholds.");
         Console.WriteLine($"\nTo generate ensemble submission on test.csv:");
         Console.WriteLine($"  kairos predict-kaggle --model {string.Join(",", foldModels)} --test test.csv --out submission.csv");
+
+        // Run ECG Diagnostics (CR-D1)
+        EcgDiagnostics.ReportRPeakPlacement(allSamples);
+        EcgDiagnostics.ReportTemplateSeparability(allSamples);
+
         Console.WriteLine("==========================================================================\n");
     }
 

@@ -450,9 +450,18 @@ switch (command)
         double[]? weightPowers = null;
         int cvFolds = 0;
 
+        bool explicitSubregions = false;
+        bool isKagglePreset = false;
+
         for (int i = 1; i < args.Length; i++)
         {
-            if ((args[i] == "--train" || args[i] == "--data") && i + 1 < args.Length)
+            if (args[i] == "--kaggle")
+            {
+                isKagglePreset = true;
+                baselines = false;
+                if (!explicitSubregions) subregions = 16;
+            }
+            else if ((args[i] == "--train" || args[i] == "--data") && i + 1 < args.Length)
                 trainPath = args[++i];
             else if ((args[i] == "--model" || args[i] == "--output") && i + 1 < args.Length)
                 modelPath = args[++i];
@@ -463,7 +472,10 @@ switch (command)
             else if (args[i] == "--hidden" && i + 1 < args.Length)
                 hidden = int.Parse(args[++i]);
             else if (args[i] == "--subregions" && i + 1 < args.Length)
+            {
                 subregions = int.Parse(args[++i]);
+                explicitSubregions = true;
+            }
             else if (args[i] == "--val-split" && i + 1 < args.Length)
                 valSplit = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
             else if (args[i] == "--full-train")
@@ -487,6 +499,11 @@ switch (command)
                 baselines = false;
             else if (args[i] == "--no-calibrate")
                 calibrateThresholds = false;
+        }
+
+        if (isKagglePreset && !explicitSubregions)
+        {
+            subregions = 16;
         }
 
         if (string.IsNullOrEmpty(trainPath))

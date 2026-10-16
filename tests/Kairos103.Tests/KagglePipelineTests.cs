@@ -317,4 +317,31 @@ public class KagglePipelineTests
 
         Assert.Equal(100, totalAcrossFolds);
     }
+
+    [Fact]
+    public void EcgDiagnostics_RunsWithoutException_OnSyntheticFixture()
+    {
+        var samples = new List<KaggleEcgSample>();
+        var rng = new Random(42);
+
+        for (int i = 0; i < 40; i++)
+        {
+            int label = i % 4;
+            double[] wave = new double[250];
+            // Simulate an R peak near sample 125
+            for (int t = 0; t < 250; t++)
+            {
+                double dist = t - 125.0;
+                wave[t] = Math.Exp(-0.5 * (dist * dist) / 25.0) + (rng.NextDouble() * 0.05);
+            }
+            samples.Add(new KaggleEcgSample($"diag_{i}", wave, 0.8, 0.8, 1.0, label));
+        }
+
+        var exPlacement = Record.Exception(() => EcgDiagnostics.ReportRPeakPlacement(samples));
+        Assert.Null(exPlacement);
+
+        var exSeparability = Record.Exception(() => EcgDiagnostics.ReportTemplateSeparability(samples));
+        Assert.Null(exSeparability);
+    }
 }
+

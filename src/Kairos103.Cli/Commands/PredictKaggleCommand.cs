@@ -70,7 +70,7 @@ public static class PredictKaggleCommand
         }
         else
         {
-            activeThresholds = [1.00, 1.00, 1.25, 1.00];
+            activeThresholds = [1.00, 1.10, 1.00, 1.00];
             Console.WriteLine($"  Applying default decision thresholds: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
         }
 

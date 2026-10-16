@@ -453,7 +453,7 @@ public sealed class KairosClassifier
         _ovrTrainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, weightPower: weightPower, weightPowers: weightPowers);
         IsTrained = true;
 
-        Thresholds = defaultThresholds ?? [1.00, 1.00, 1.25, 1.00];
+        Thresholds = defaultThresholds ?? [1.00, 1.10, 1.00, 1.00];
     }
 
     private IReadOnlyList<(double[] Features, int Label)> EncodeSamples(
@@ -605,6 +605,50 @@ public sealed class KairosClassifier
             return _ovrTrainer.PredictProbabilities(inputFeats);
         }
         return _trainer!.PredictProbabilities(inputFeats);
+    }
+
+    /// <summary>
+    /// Computes raw uncalibrated linear logits for a 1D signal with optional auxiliary features.
+    /// </summary>
+    public double[] PredictLogits(ReadOnlySpan<double> signal, int effectiveLength = -1)
+    {
+        EnsureTrained();
+        int len = effectiveLength > 0 ? effectiveLength : signal.Length;
+        var (feats, _) = _network.Forward(signal, len);
+
+        int featDim = _ovrTrainer?.FeatureDim ?? _trainer!.FeatureDim;
+        double[] inputFeats = feats;
+        int auxCount = signal.Length - len;
+        if (auxCount > 0)
+        {
+            if (featDim != _network.TotalFeatures + auxCount)
+            {
+                throw new InvalidOperationException(
+                    $"Feature dimension mismatch! Model expects {featDim} features " +
+                    $"({_network.TotalFeatures} neuromorphic + {featDim - _network.TotalFeatures} aux), " +
+                    $"but input signal provided {auxCount} auxiliary features (Total: {_network.TotalFeatures + auxCount}).");
+            }
+
+            inputFeats = new double[featDim];
+            Array.Copy(feats, inputFeats, _network.TotalFeatures);
+            for (int a = 0; a < auxCount; a++)
+            {
+                inputFeats[_network.TotalFeatures + a] = signal[len + a];
+            }
+        }
+
+        if (_ovrTrainer != null)
+        {
+            return _ovrTrainer.PredictLogits(inputFeats);
+        }
+        double[] probs = _trainer!.PredictProbabilities(inputFeats);
+        double[] logits = new double[probs.Length];
+        for (int c = 0; c < probs.Length; c++)
+        {
+            double p = Math.Clamp(probs[c], 1e-7, 1.0 - 1e-7);
+            logits[c] = Math.Log(p / (1.0 - p));
+        }
+        return logits;
     }
 
     /// <summary>

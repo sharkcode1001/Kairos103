@@ -84,11 +84,11 @@ public sealed class OvrTrainer
     }
 
     /// <summary>
-    /// Computes predicted sigmoid probabilities for all classes independently.
+    /// Computes raw uncalibrated linear logits z_c for all classes independently before sigmoid activation.
     /// </summary>
-    public double[] PredictProbabilities(ReadOnlySpan<double> features)
+    public double[] PredictLogits(ReadOnlySpan<double> features)
     {
-        double[] probs = new double[ClassCount];
+        double[] logits = new double[ClassCount];
         Span<int> active = stackalloc int[FeatureDim];
         int activeCount = 0;
         for (int f = 0; f < features.Length; f++)
@@ -119,7 +119,21 @@ public sealed class OvrTrainer
                 z += w2c[j] * hj;
             }
 
-            probs[c] = Sigmoid(z);
+            logits[c] = z;
+        }
+        return logits;
+    }
+
+    /// <summary>
+    /// Computes predicted sigmoid probabilities for all classes independently.
+    /// </summary>
+    public double[] PredictProbabilities(ReadOnlySpan<double> features)
+    {
+        double[] logits = PredictLogits(features);
+        double[] probs = new double[ClassCount];
+        for (int c = 0; c < ClassCount; c++)
+        {
+            probs[c] = Sigmoid(logits[c]);
         }
         return probs;
     }

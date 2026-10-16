@@ -152,7 +152,7 @@ public static class TrainEcgCommand
                     lr: lr,
                     hiddenDim: hiddenDim,
                     weightPower: weightPower,
-                    defaultThresholds: [1.00, 1.00, 1.25, 1.00],
+                    defaultThresholds: [1.00, 1.10, 1.00, 1.00],
                     onProgress: (ep, totalEp) =>
                     {
                         Console.WriteLine($"  Epoch [{ep,2}/{totalEp,2}] complete on 100% training data (OvR).");

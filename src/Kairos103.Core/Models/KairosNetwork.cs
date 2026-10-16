@@ -43,38 +43,27 @@ public sealed class KairosNetwork
             _subregions[m] = new ModularSubregion(baseThreshold: 0.75, decayRate: 0.90, lateralInhibitionBoost: 0.20);
         }
 
-        // Multi-perspective orthogonal projection streams:
-        // Subregions within each anatomical bank are partitioned across 3 diverse seed perspectives
-        // (seed, seed * 31 + 7, seed * 127 + 1013), eliminating projection blind spots in a single model.
-        int[] seedStreams = [seed, unchecked(seed * 31 + 7), unchecked(seed * 127 + 1013)];
-
+        // Initialize fixed normalized random projections
+        var rng = new Random(seed);
         _projectionWeights = new double[TotalNeurons][];
-        for (int m = 0; m < subregionCount; m++)
+        for (int i = 0; i < TotalNeurons; i++)
         {
-            int viewIdx = (m / 4) % 3;
-            var rng = new Random(seedStreams[viewIdx] + (m * 53));
-
-            int baseNeuron = m * ModularSubregion.SubregionSize;
-            for (int n = 0; n < ModularSubregion.SubregionSize; n++)
+            _projectionWeights[i] = new double[FilterPoints];
+            double sumSq = 0.0;
+            for (int k = 0; k < FilterPoints; k++)
             {
-                int neuronIdx = baseNeuron + n;
-                _projectionWeights[neuronIdx] = new double[FilterPoints];
-                double sumSq = 0.0;
+                double val = (rng.NextDouble() * 2.0) - 1.0;
+                _projectionWeights[i][k] = val;
+                sumSq += val * val;
+            }
+
+            // L2 normalization
+            double norm = Math.Sqrt(sumSq);
+            if (norm > 1e-6)
+            {
                 for (int k = 0; k < FilterPoints; k++)
                 {
-                    double val = (rng.NextDouble() * 2.0) - 1.0;
-                    _projectionWeights[neuronIdx][k] = val;
-                    sumSq += val * val;
-                }
-
-                // L2 normalization
-                double norm = Math.Sqrt(sumSq);
-                if (norm > 1e-6)
-                {
-                    for (int k = 0; k < FilterPoints; k++)
-                    {
-                        _projectionWeights[neuronIdx][k] /= norm;
-                    }
+                    _projectionWeights[i][k] /= norm;
                 }
             }
         }

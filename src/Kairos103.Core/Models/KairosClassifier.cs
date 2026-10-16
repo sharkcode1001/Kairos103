@@ -37,6 +37,8 @@ public sealed class KairosModelMetadata
     public double[][] W2 { get; set; } = [];
     public double[] B2 { get; set; } = [];
     public double[] Thresholds { get; set; } = [];
+    public double[] CalibScale { get; set; } = [];
+    public double[] CalibBias { get; set; } = [];
     public bool IsOvr { get; set; } = false;
     public double[][][] OvrW1 { get; set; } = [];
     public double[][] OvrB1 { get; set; } = [];
@@ -55,6 +57,28 @@ public sealed class KairosClassifier
     public int ClassCount { get; private set; }
     public bool IsTrained { get; private set; }
     public double[] Thresholds { get; set; } = [];
+    public double[] CalibScale
+    {
+        get => _ovrTrainer?.CalibScale ?? _calibScale;
+        set
+        {
+            _calibScale = value;
+            if (_ovrTrainer != null) _ovrTrainer.CalibScale = value;
+        }
+    }
+    private double[] _calibScale = [];
+
+    public double[] CalibBias
+    {
+        get => _ovrTrainer?.CalibBias ?? _calibBias;
+        set
+        {
+            _calibBias = value;
+            if (_ovrTrainer != null) _ovrTrainer.CalibBias = value;
+        }
+    }
+    private double[] _calibBias = [];
+
     public bool IsOvr => _ovrTrainer != null;
 
     public int TotalNeurons => _network?.TotalNeurons ?? (SubregionCount * 4);
@@ -228,8 +252,12 @@ public sealed class KairosClassifier
 
         if (calibrateThresholds && encodedVal.Count > 0)
         {
-            Console.WriteLine("\n[3/3] Calibrating decision thresholds on validation fold to maximize Macro F1...");
+            Console.WriteLine("\n[3/3] Calibrating logits (Platt) & decision thresholds on validation fold to maximize Macro F1...");
             var calResult = CalibrateThresholds(encodedVal);
+            if (CalibScale != null && CalibScale.Length == ClassCount)
+            {
+                Console.WriteLine($"  Platt Scaling: [{string.Join(", ", CalibScale.Select((a, c) => $"Class {c}: a={a:F3}, b={CalibBias[c]:F3}"))}]");
+            }
             Console.WriteLine($"  Optimal Thresholds: [{string.Join(", ", Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
             Console.WriteLine($"  Calibrated Validation Macro F1: {calResult.MacroF1:F4} (Accuracy: {calResult.Accuracy * 100:F2}%)\n");
             Console.Out.Flush();
@@ -240,7 +268,99 @@ public sealed class KairosClassifier
     }
 
     /// <summary>
-    /// Calibrates class decision thresholds on validation probabilities using coordinate search to maximize Macro F1.
+    /// Fits 1D Platt scaling (a_c * z_c + b_c) per class head on validation logits using Newton-Raphson.
+    /// Regularizes binary targets using Lin, Lin & Weng (2007) formulation to prevent overfitting/divergence.
+    /// </summary>
+    public void FitPlattCalibration(double[][] logits, int[] actuals)
+    {
+        int n = logits.Length;
+        if (n == 0) return;
+
+        double[] scales = new double[ClassCount];
+        double[] biases = new double[ClassCount];
+
+        for (int c = 0; c < ClassCount; c++)
+        {
+            int nPos = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (actuals[i] == c) nPos++;
+            }
+            int nNeg = n - nPos;
+
+            // Target regularization (Lin et al. 2007)
+            double tPos = (nPos + 1.0) / (nPos + 2.0);
+            double tNeg = 1.0 / (nNeg + 2.0);
+
+            // Initial parameters: scale a = 1.0, bias b = 0.0
+            double a = 1.0;
+            double b = 0.0;
+            double lambda = 1e-4;
+
+            // Newton-Raphson optimization
+            for (int iter = 0; iter < 25; iter++)
+            {
+                double gradA = 0.0;
+                double gradB = 0.0;
+                double hAA = 0.0;
+                double hAB = 0.0;
+                double hBB = 0.0;
+
+                for (int i = 0; i < n; i++)
+                {
+                    double z = logits[i][c];
+                    double target = (actuals[i] == c) ? tPos : tNeg;
+                    double p = Sigmoid(a * z + b);
+                    p = Math.Clamp(p, 1e-12, 1.0 - 1e-12);
+
+                    double diff = p - target;
+                    gradA += diff * z;
+                    gradB += diff;
+
+                    double w = p * (1.0 - p);
+                    hAA += w * z * z;
+                    hAB += w * z;
+                    hBB += w;
+                }
+
+                hAA += lambda;
+                hBB += lambda;
+
+                double det = (hAA * hBB) - (hAB * hAB);
+                if (Math.Abs(det) < 1e-12)
+                {
+                    break;
+                }
+
+                double deltaA = -(hBB * gradA - hAB * gradB) / det;
+                double deltaB = -(-hAB * gradA + hAA * gradB) / det;
+
+                // Step damping to prevent oscillation
+                deltaA = Math.Clamp(deltaA, -2.0, 2.0);
+                deltaB = Math.Clamp(deltaB, -2.0, 2.0);
+
+                a += deltaA;
+                b += deltaB;
+
+                // Monotonicity guard: logit should remain positively correlated with class probability
+                if (a < 0.01) a = 0.01;
+
+                if (Math.Abs(deltaA) < 1e-5 && Math.Abs(deltaB) < 1e-5)
+                {
+                    break;
+                }
+            }
+
+            scales[c] = a;
+            biases[c] = b;
+        }
+
+        CalibScale = scales;
+        CalibBias = biases;
+    }
+
+    /// <summary>
+    /// Calibrates class decision thresholds and Platt scaling parameters on validation logits using coordinate search to maximize Macro F1.
     /// </summary>
     public MacroF1Result CalibrateThresholds(IReadOnlyList<(double[] Features, int Label)> valEncoded)
     {
@@ -248,12 +368,32 @@ public sealed class KairosClassifier
         int n = valEncoded.Count;
         double[][] probs = new double[n][];
         int[] actuals = new int[n];
-        for (int i = 0; i < n; i++)
+
+        if (_ovrTrainer != null)
         {
-            probs[i] = _ovrTrainer != null 
-                ? _ovrTrainer.PredictProbabilities(valEncoded[i].Features) 
-                : _trainer!.PredictProbabilities(valEncoded[i].Features);
-            actuals[i] = valEncoded[i].Label;
+            double[][] logits = new double[n][];
+            for (int i = 0; i < n; i++)
+            {
+                logits[i] = _ovrTrainer.PredictLogits(valEncoded[i].Features);
+                actuals[i] = valEncoded[i].Label;
+            }
+
+            // 1. Fit Platt scaling calibration on raw OvR validation logits
+            FitPlattCalibration(logits, actuals);
+
+            // 2. Compute calibrated probabilities using the newly fitted parameters
+            for (int i = 0; i < n; i++)
+            {
+                probs[i] = _ovrTrainer.PredictProbabilities(valEncoded[i].Features);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < n; i++)
+            {
+                probs[i] = _trainer!.PredictProbabilities(valEncoded[i].Features);
+                actuals[i] = valEncoded[i].Label;
+            }
         }
 
         Thresholds = Enumerable.Repeat(1.0, ClassCount).ToArray();
@@ -261,9 +401,9 @@ public sealed class KairosClassifier
         double bestMacroF1 = baseRes.MacroF1;
         double[] bestThresh = (double[])Thresholds.Clone();
 
-        double[] candidates = [0.08, 0.12, 0.18, 0.25, 0.32, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0, 1.25, 1.50, 1.80, 2.20, 2.60, 3.0, 3.5];
+        double[] candidates = [0.08, 0.12, 0.18, 0.25, 0.32, 0.40, 0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 1.0, 1.10, 1.25, 1.50, 1.80, 2.20, 2.60, 3.0, 3.5];
 
-        // Coordinate search over class thresholds
+        // 3. Coordinate search over class thresholds to directly maximize Macro F1
         for (int iter = 0; iter < 4; iter++)
         {
             for (int c = 0; c < ClassCount; c++)
@@ -402,8 +542,12 @@ public sealed class KairosClassifier
 
         if (calibrateThresholds && encodedVal.Count > 0)
         {
-            Console.WriteLine("\n[3/3] Calibrating decision thresholds across OvR heads to maximize Macro F1...");
+            Console.WriteLine("\n[3/3] Calibrating logits (Platt) & decision thresholds across OvR heads to maximize Macro F1...");
             var calResult = CalibrateThresholds(encodedVal);
+            if (CalibScale != null && CalibScale.Length == ClassCount)
+            {
+                Console.WriteLine($"  Platt Scaling: [{string.Join(", ", CalibScale.Select((a, c) => $"Class {c}: a={a:F3}, b={CalibBias[c]:F3}"))}]");
+            }
             Console.WriteLine($"  Optimal Thresholds: [{string.Join(", ", Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
             Console.WriteLine($"  Calibrated Validation Macro F1: {calResult.MacroF1:F4} (Accuracy: {calResult.Accuracy * 100:F2}%)\n");
             Console.Out.Flush();
@@ -641,7 +785,19 @@ public sealed class KairosClassifier
         {
             return _ovrTrainer.PredictLogits(inputFeats);
         }
-        double[] probs = _trainer!.PredictProbabilities(inputFeats);
+        return GetTrainerLogits(inputFeats);
+    }
+
+    private static double Sigmoid(double z)
+    {
+        if (z < -30.0) return 0.0;
+        if (z > 30.0) return 1.0;
+        return 1.0 / (1.0 + Math.Exp(-z));
+    }
+
+    private double[] GetTrainerLogits(double[] features)
+    {
+        double[] probs = _trainer!.PredictProbabilities(features);
         double[] logits = new double[probs.Length];
         for (int c = 0; c < probs.Length; c++)
         {
@@ -758,6 +914,8 @@ public sealed class KairosClassifier
             TotalFeatures = TotalFeatures,
             HiddenDim = HiddenDim,
             Thresholds = Thresholds,
+            CalibScale = CalibScale,
+            CalibBias = CalibBias,
             IsOvr = IsOvr,
             AuxVersion = 3
         };
@@ -800,7 +958,9 @@ public sealed class KairosClassifier
         {
             ClassCount = meta.ClassCount,
             IsTrained = true,
-            Thresholds = meta.Thresholds ?? []
+            Thresholds = meta.Thresholds ?? [],
+            CalibScale = meta.CalibScale ?? [],
+            CalibBias = meta.CalibBias ?? []
         };
 
         if (meta.AuxVersion < 3)
@@ -821,6 +981,8 @@ public sealed class KairosClassifier
                 Array.Copy(meta.OvrW2[c], ovr.W2[c], meta.HiddenDim);
                 ovr.B2[c] = meta.OvrB2[c];
             }
+            ovr.CalibScale = classifier.CalibScale;
+            ovr.CalibBias = classifier.CalibBias;
             classifier._ovrTrainer = ovr;
         }
         else

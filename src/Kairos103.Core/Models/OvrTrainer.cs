@@ -84,6 +84,16 @@ public sealed class OvrTrainer
     }
 
     /// <summary>
+    /// Platt scaling multiplicative factor a_c per class. Defaults to empty (unscaled/identity).
+    /// </summary>
+    public double[] CalibScale { get; set; } = [];
+
+    /// <summary>
+    /// Platt scaling additive bias b_c per class. Defaults to empty (unscaled/identity).
+    /// </summary>
+    public double[] CalibBias { get; set; } = [];
+
+    /// <summary>
     /// Computes raw uncalibrated linear logits z_c for all classes independently before sigmoid activation.
     /// </summary>
     public double[] PredictLogits(ReadOnlySpan<double> features)
@@ -125,15 +135,23 @@ public sealed class OvrTrainer
     }
 
     /// <summary>
-    /// Computes predicted sigmoid probabilities for all classes independently.
+    /// Computes predicted sigmoid probabilities for all classes independently, applying Platt scaling if fitted.
     /// </summary>
     public double[] PredictProbabilities(ReadOnlySpan<double> features)
     {
         double[] logits = PredictLogits(features);
         double[] probs = new double[ClassCount];
+        bool hasCalib = CalibScale != null && CalibScale.Length == ClassCount &&
+                        CalibBias != null && CalibBias.Length == ClassCount;
+
         for (int c = 0; c < ClassCount; c++)
         {
-            probs[c] = Sigmoid(logits[c]);
+            double z = logits[c];
+            if (hasCalib)
+            {
+                z = CalibScale![c] * z + CalibBias![c];
+            }
+            probs[c] = Sigmoid(z);
         }
         return probs;
     }
@@ -238,6 +256,16 @@ public sealed class OvrTrainer
             clone._vB2[c] = _vB2[c];
             clone._adamStep[c] = _adamStep[c];
         }
+
+        if (CalibScale != null && CalibScale.Length > 0)
+        {
+            clone.CalibScale = (double[])CalibScale.Clone();
+        }
+        if (CalibBias != null && CalibBias.Length > 0)
+        {
+            clone.CalibBias = (double[])CalibBias.Clone();
+        }
+
         return clone;
     }
 
@@ -377,8 +405,8 @@ public sealed class OvrTrainer
 
     private static double Sigmoid(double z)
     {
-        if (z < -15.0) return 0.0;
-        if (z > 15.0) return 1.0;
+        if (z < -30.0) return 0.0;
+        if (z > 30.0) return 1.0;
         return 1.0 / (1.0 + Math.Exp(-z));
     }
 }

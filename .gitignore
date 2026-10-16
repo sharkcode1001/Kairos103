@@ -365,4 +365,10 @@ FodyWeavers.xsd
 # OS & Environment artifacts
 .DS_Store
 Thumbs.db
+
+# Competition datasets and local artifacts (>100MB)
+datasets/nppe2_dataset/
+*.kairos
+submission*.csv
+
 

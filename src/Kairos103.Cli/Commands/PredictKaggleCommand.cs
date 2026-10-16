@@ -34,7 +34,8 @@ public static class PredictKaggleCommand
             }
             Console.WriteLine($"Loading model from: {file}...");
             var c = KairosClassifier.Load(file);
-            Console.WriteLine($"  Loaded Kairos103 model (Subregions: {c.SubregionCount}, Classes: {c.ClassCount}, Readout Dim: {c.HiddenDim})");
+            string calibInfo = (c.CalibScale != null && c.CalibScale.Length == c.ClassCount) ? " [Platt Calibrated]" : "";
+            Console.WriteLine($"  Loaded Kairos103 model (Subregions: {c.SubregionCount}, Classes: {c.ClassCount}, Readout Dim: {c.HiddenDim}){calibInfo}");
             classifiers.Add(c);
         }
 
@@ -63,15 +64,36 @@ public static class PredictKaggleCommand
             activeThresholds = customThresholds;
             Console.WriteLine($"  Overriding decision thresholds with user-specified: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
         }
-        else if (classifiers[0].Thresholds != null && classifiers[0].Thresholds.Length == classifiers[0].ClassCount)
-        {
-            activeThresholds = classifiers[0].Thresholds;
-            Console.WriteLine($"  Applying model-calibrated decision thresholds: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
-        }
         else
         {
-            activeThresholds = [1.00, 1.10, 1.00, 1.00];
-            Console.WriteLine($"  Applying default decision thresholds: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+            activeThresholds = new double[classifiers[0].ClassCount];
+            int countWithThresh = 0;
+            for (int m = 0; m < classifiers.Count; m++)
+            {
+                if (classifiers[m].Thresholds != null && classifiers[m].Thresholds.Length == classifiers[0].ClassCount)
+                {
+                    for (int c = 0; c < classifiers[0].ClassCount; c++)
+                    {
+                        activeThresholds[c] += classifiers[m].Thresholds[c];
+                    }
+                    countWithThresh++;
+                }
+            }
+
+            if (countWithThresh > 0)
+            {
+                for (int c = 0; c < classifiers[0].ClassCount; c++)
+                {
+                    activeThresholds[c] /= countWithThresh;
+                }
+                string srcDesc = countWithThresh == 1 ? "model-calibrated" : $"ensemble average calibrated ({countWithThresh} models)";
+                Console.WriteLine($"  Applying {srcDesc} decision thresholds: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+            }
+            else
+            {
+                activeThresholds = [1.00, 1.10, 1.00, 1.00];
+                Console.WriteLine($"  Applying default decision thresholds: [{string.Join(", ", activeThresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
+            }
         }
 
         Console.WriteLine($"Loading test dataset from: {testPath}...");

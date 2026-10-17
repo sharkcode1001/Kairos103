@@ -4,7 +4,7 @@ namespace Kairos103.Core.Data;
 
 /// <summary>
 /// Structured container for an ECG sample from the Kaggle competition.
-/// Separates the raw waveform from auxiliary cardiac rhythm features (RR intervals) and metadata.
+/// Separates the raw waveform from the auxiliary cardiac clinical features (rhythm, morphology, electrophysiology) and metadata.
 /// </summary>
 public sealed record KaggleEcgSample(
     string Id,
@@ -17,6 +17,27 @@ public sealed record KaggleEcgSample(
     public const int WaveformLength = 250;
     public const int AuxCount = 22;
     public const int TotalLength = WaveformLength + AuxCount;
+
+    /// <summary>
+    /// Canonical names of the <see cref="AuxCount"/> auxiliary features, in the exact order they are written
+    /// into <see cref="ToCombinedSignal"/>. Single source of truth for diagnostics and reporting.
+    /// Layout: [0..2] rhythm, [3..8] relative morphology, [9..17] clinical electrophysiology, [18..21] advanced/atrial.
+    /// </summary>
+    public static readonly string[] AuxFeatureNames =
+    [
+        "pre_rr", "post_rr", "rr_ratio",
+        "prematurity_index", "compensatory_pause", "rel_qrs_abs_area", "rel_qrs_p2p", "rel_qrs_width", "qrs_asymmetry",
+        "norm_baseline", "qrs_polarity", "t_polarity", "stt_discordance", "max_pos_slope", "max_neg_slope", "slope_ratio", "rel_p_energy", "t_to_qrs_ratio",
+        "qrs_notching", "qrs_base_width", "p_wave_prominence", "p_to_r_latency"
+    ];
+
+    static KaggleEcgSample()
+    {
+        if (AuxFeatureNames.Length != AuxCount)
+        {
+            throw new InvalidOperationException($"AuxFeatureNames must contain exactly {AuxCount} entries (found {AuxFeatureNames.Length}).");
+        }
+    }
 
     /// <summary>
     /// Combines the normalized 250 waveform samples followed by 22 patient-independent relative clinical features into a single continuous vector:
@@ -281,7 +302,7 @@ public sealed record KaggleEcgSample(
 
     /// <summary>
     /// Converts this sample into a Kairos SignalSample with effective length set to 250.
-    /// The LIF front-end processes only the 250 waveform points, and the 9 aux features are fused into the readout.
+    /// The LIF front-end processes only the 250 waveform points, and the 22 aux features are fused into the readout.
     /// </summary>
     public SignalSample ToSignalSample()
     {

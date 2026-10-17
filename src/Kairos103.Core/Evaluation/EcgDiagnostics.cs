@@ -1,5 +1,6 @@
 using System.Globalization;
 using Kairos103.Core.Data;
+using Kairos103.Core.Models;
 
 namespace Kairos103.Core.Evaluation;
 
@@ -183,6 +184,153 @@ public static class EcgDiagnostics
         Console.WriteLine("   Class 1 (SVEB):   Expected r >= 0.80 - 0.92 (ventricles normal, QRS preserved)");
         Console.WriteLine("   Class 2 (VEB):    Expected r <= 0.30 - 0.50 (wide, bizarre, ectopic morphology)");
         Console.WriteLine("   Class 3 (Fusion): Expected r ~  0.45 - 0.75 (hybrid intermediate morphology)");
+        Console.WriteLine("==========================================================================\n");
+    }
+
+    /// <summary>
+    /// Estimates the contribution of each auxiliary feature using permutation importance (a model-agnostic ablation):
+    /// each auxiliary column is independently shuffled across the evaluation set and the induced drop in Macro F1 is measured.
+    /// It also reports distributional health (min/max/mean/std) and an eta-squared separability score to flag dead or redundant features.
+    /// </summary>
+    public static void ReportAuxFeatureImportance(
+        KairosClassifier model,
+        IReadOnlyList<(double[] Features, int Label)> encoded,
+        int repeats = 3,
+        int seed = 12345)
+    {
+        if (model == null) throw new ArgumentNullException(nameof(model));
+        if (encoded == null || encoded.Count == 0) return;
+
+        int auxCount = KaggleEcgSample.AuxCount;
+        int n = encoded.Count;
+        int featDim = encoded[0].Features.Length;
+        if (featDim <= auxCount || model.TotalFeatures != featDim)
+        {
+            Console.WriteLine($"[WARN] Feature importance skipped: encoded feature dim ({featDim}) does not match the model ({model.TotalFeatures}) with {auxCount} aux slots.");
+            return;
+        }
+
+        int auxStart = featDim - auxCount;
+        int classCount = model.ClassCount;
+
+        int[] actuals = new int[n];
+        for (int i = 0; i < n; i++) actuals[i] = encoded[i].Label;
+
+        bool useBias = model.DecisionBias is { Length: > 0 } && model.DecisionBias.Length == classCount;
+        bool useThresh = model.Thresholds is { Length: > 0 } && model.Thresholds.Length == classCount;
+
+        int Predict(double[] feats)
+        {
+            if (useBias)
+            {
+                return KairosClassifier.ArgMaxBias(model.PredictCalibratedLogitsFromFeatures(feats), model.DecisionBias);
+            }
+            if (useThresh)
+            {
+                double[] probs = model.PredictProbabilitiesFromFeatures(feats);
+                int best = 0;
+                double bestScore = probs[0] / Math.Max(1e-4, model.Thresholds[0]);
+                for (int c = 1; c < classCount; c++)
+                {
+                    double score = probs[c] / Math.Max(1e-4, model.Thresholds[c]);
+                    if (score > bestScore) { bestScore = score; best = c; }
+                }
+                return best;
+            }
+            return KairosClassifier.ArgMaxBias(model.PredictCalibratedLogitsFromFeatures(feats), new double[classCount]);
+        }
+
+        int[] basePreds = new int[n];
+        for (int i = 0; i < n; i++) basePreds[i] = Predict(encoded[i].Features);
+        double baseF1 = MacroF1Metrics.Compute(actuals, basePreds, classCount).MacroF1;
+
+        var rng = new Random(seed);
+        var rows = new (int Index, string Name, double Min, double Max, double Mean, double Std, double Eta2, double Drop)[auxCount];
+
+        for (int a = 0; a < auxCount; a++)
+        {
+            int idx = auxStart + a;
+            double[] col = new double[n];
+            double mn = double.PositiveInfinity, mx = double.NegativeInfinity, sum = 0.0;
+            for (int i = 0; i < n; i++)
+            {
+                double v = encoded[i].Features[idx];
+                col[i] = v;
+                if (v < mn) mn = v;
+                if (v > mx) mx = v;
+                sum += v;
+            }
+            double mean = sum / n;
+
+            double totalSs = 0.0;
+            for (int i = 0; i < n; i++) { double d = col[i] - mean; totalSs += d * d; }
+            double std = Math.Sqrt(totalSs / n);
+
+            double[] classSum = new double[classCount];
+            int[] classN = new int[classCount];
+            for (int i = 0; i < n; i++)
+            {
+                int c = actuals[i];
+                if (c < 0 || c >= classCount) continue;
+                classSum[c] += col[i];
+                classN[c]++;
+            }
+            double between = 0.0;
+            for (int c = 0; c < classCount; c++)
+            {
+                if (classN[c] == 0) continue;
+                double d = classSum[c] / classN[c] - mean;
+                between += classN[c] * d * d;
+            }
+            double eta2 = totalSs > 1e-12 ? between / totalSs : 0.0;
+
+            double drop = 0.0;
+            for (int r = 0; r < repeats; r++)
+            {
+                double[] shuffled = (double[])col.Clone();
+                for (int i = n - 1; i > 0; i--)
+                {
+                    int j = rng.Next(i + 1);
+                    (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+                }
+
+                for (int i = 0; i < n; i++) encoded[i].Features[idx] = shuffled[i];
+                int[] preds = new int[n];
+                for (int i = 0; i < n; i++) preds[i] = Predict(encoded[i].Features);
+                drop += baseF1 - MacroF1Metrics.Compute(actuals, preds, classCount).MacroF1;
+                for (int i = 0; i < n; i++) encoded[i].Features[idx] = col[i];
+            }
+            drop /= repeats;
+
+            string name = a < KaggleEcgSample.AuxFeatureNames.Length ? KaggleEcgSample.AuxFeatureNames[a] : $"aux_{a}";
+            rows[a] = (a, name, mn, mx, mean, std, eta2, drop);
+        }
+
+        var ranked = rows.OrderByDescending(r => r.Drop).ThenByDescending(r => r.Eta2).ToArray();
+
+        Console.WriteLine("\n==========================================================================");
+        Console.WriteLine("   ECG DIAGNOSTICS: AUXILIARY FEATURE IMPORTANCE (PERMUTATION, dMacroF1)   ");
+        Console.WriteLine("==========================================================================");
+        Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+            "Evaluated on {0:N0} samples | Baseline Macro F1 = {1:F4} | Repeats = {2}", n, baseF1, repeats));
+        Console.WriteLine("--------------------------------------------------------------------------");
+        Console.WriteLine(" Rank | Idx | Feature             |    Min    |    Max    |   Mean   |   Std    | eta2  | dMacroF1");
+        Console.WriteLine("--------------------------------------------------------------------------");
+
+        int rank = 1;
+        foreach (var row in ranked)
+        {
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                " {0,4} | {1,3} | {2,-19} | {3,9:F4} | {4,9:F4} | {5,8:F4} | {6,8:F4} | {7,5:F3} | {8,8:F5}",
+                rank++, row.Index, row.Name, row.Min, row.Max, row.Mean, row.Std, row.Eta2, row.Drop));
+        }
+
+        Console.WriteLine("--------------------------------------------------------------------------");
+        int dead = rows.Count(r => r.Std < 1e-6);
+        int negligible = rows.Count(r => r.Drop < 0.0005);
+        Console.WriteLine($" Dead/constant features (std ~ 0): {dead} | Negligible impact (dMacroF1 < 0.0005): {negligible} / {auxCount}");
+        Console.WriteLine(" eta2 = between-class variance / total variance [0..1]. dMacroF1 = Macro F1 drop when the column is shuffled.");
+        Console.WriteLine(" dMacroF1 ~ 0 -> little unique signal (removal candidate); std ~ 0 -> dead feature.");
         Console.WriteLine("==========================================================================\n");
     }
 

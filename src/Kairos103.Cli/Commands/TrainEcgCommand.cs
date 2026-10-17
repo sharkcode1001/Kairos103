@@ -26,7 +26,8 @@ public static class TrainEcgCommand
         double[]? weightPowers = null,
         int cvFolds = 0,
         IReadOnlyList<KaggleEcgSample>? preloadedSamples = null,
-        bool runDiagnostics = true)
+        bool runDiagnostics = true,
+        bool runFeatureImportance = false)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("          KAIROS103 - KAGGLE ECG ARRHYTHMIA TRAINING PIPELINE             ");
@@ -145,7 +146,7 @@ public static class TrainEcgCommand
             ? $"  Readout:    One-vs-Rest Binary Heads ({hiddenDim} hidden neurons/head, Adam optimizer)" 
             : $"  Readout:    2-layer MLP ({hiddenDim} hidden neurons, Adam optimizer)");
         Console.WriteLine($"  Waveform:   Per-beat min-max normalized [0, 1] (patient-independent scale)");
-        Console.WriteLine($"  Auxiliary:  18 relative clinical features (3 rhythm + 6 morphology + 9 electrophysiology & ST-T discordance)");
+        Console.WriteLine($"  Auxiliary:  22 relative clinical features (3 rhythm + 6 relative morphology + 9 clinical electrophysiology + 4 advanced/atrial)");
         Console.WriteLine($"  Front-End:  4 Anatomical Banks (Global, P-Wave/PR, Central QRS, ST-Segment/T-Wave)");
         Console.WriteLine($"  Optimization Metric: Macro F1 on validation fold\n");
 
@@ -253,6 +254,15 @@ public static class TrainEcgCommand
 
         classifier.Save(modelPath);
         Console.WriteLine($"Model checkpoint successfully saved to: {modelPath}");
+
+        // Optional auxiliary feature importance (permutation ablation) on the validation split
+        if (runFeatureImportance && valSignalSamples.Count > 0
+            && valSignalSamples[0].Values.Length - valSignalSamples[0].EffectiveLength == KaggleEcgSample.AuxCount)
+        {
+            Console.WriteLine("Computing auxiliary feature importance (permutation ablation on validation split)...");
+            var encodedValImportance = classifier.EncodeSamples(valSignalSamples, "importance");
+            EcgDiagnostics.ReportAuxFeatureImportance(classifier, encodedValImportance);
+        }
 
         // Run ECG Diagnostics (CR-D1)
         if (runDiagnostics)

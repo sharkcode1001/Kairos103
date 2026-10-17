@@ -205,14 +205,14 @@ public class KagglePipelineTests
         int cnnPred = cnn.Predict(val[0]);
         Assert.True(cnnPred >= 0 && cnnPred < 4);
 
-        // Verify Save and Load preserve auxiliary features (FeatureDim = TotalFeatures + 3)
+        // Verify Save and Load preserve auxiliary features (FeatureDim = TotalFeatures + AuxCount)
         string tempModel = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.kairos");
         try
         {
             classifier.Save(tempModel);
             var loaded = KairosClassifier.Load(tempModel);
 
-            // Subregions: 8 * 24 = 192, plus 18 aux features = 210
+            // Subregions: 8 * 24 = 192, plus 22 aux features = 214
             Assert.Equal(8 * 24 + KaggleEcgSample.AuxCount, loaded.TotalFeatures);
 
             for (int i = 0; i < val.Count; i++)

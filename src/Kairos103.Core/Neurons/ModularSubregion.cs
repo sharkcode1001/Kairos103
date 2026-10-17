@@ -49,12 +49,38 @@ public sealed class ModularSubregion
 
     /// <summary>
     /// Returns the sorted indices of neurons ordered by their first-spike arrival timestamp.
+    /// Stable with respect to ties (equal timestamps preserve ascending index order).
     /// </summary>
     public int[] GetFirstSpikeOrder()
     {
-        return Enumerable.Range(0, SubregionSize)
-            .OrderBy(i => _neurons[i].FirstSpikeTime)
-            .ToArray();
+        int[] order = new int[SubregionSize];
+        GetFirstSpikeOrder(order);
+        return order;
+    }
+
+    /// <summary>
+    /// Fills <paramref name="order"/> with the neuron indices ordered by first-spike arrival timestamp.
+    /// Allocation-free stable insertion sort (equivalent to OrderBy, which is stable).
+    /// </summary>
+    public void GetFirstSpikeOrder(Span<int> order)
+    {
+        if (order.Length < SubregionSize)
+            throw new ArgumentException($"At least {SubregionSize} slots required.", nameof(order));
+
+        for (int i = 0; i < SubregionSize; i++) order[i] = i;
+
+        for (int i = 1; i < SubregionSize; i++)
+        {
+            int key = order[i];
+            double keyTime = _neurons[key].FirstSpikeTime;
+            int j = i - 1;
+            while (j >= 0 && _neurons[order[j]].FirstSpikeTime > keyTime)
+            {
+                order[j + 1] = order[j];
+                j--;
+            }
+            order[j + 1] = key;
+        }
     }
 
     /// <summary>

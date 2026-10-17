@@ -72,6 +72,11 @@ public static class KagglePipelineCommand
         var modelPaths = new List<string>(seedList.Length);
         string baseName = Path.GetFileNameWithoutExtension(trainPath);
 
+        // Parse the training CSV exactly once and share the immutable sample list across all ensemble members.
+        Console.WriteLine($"\nLoading training dataset once for all {seedList.Length} ensemble members: {trainPath}...");
+        var allSamples = KaggleEcgDataset.LoadTrain(trainPath);
+        Console.WriteLine($"Loaded {allSamples.Count:N0} samples.\n");
+
         for (int i = 0; i < seedList.Length; i++)
         {
             int seed = seedList[i];
@@ -96,7 +101,9 @@ public static class KagglePipelineCommand
                 calibrateThresholds: false,
                 useOvr: true,
                 weightPowers: weightPowersArr,
-                cvFolds: 0);
+                cvFolds: 0,
+                preloadedSamples: allSamples,
+                runDiagnostics: false);
 
             if (!File.Exists(modelPath))
             {

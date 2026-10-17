@@ -1,3 +1,4 @@
+using System.Numerics;
 using Kairos103.Core.Encoding;
 using Kairos103.Core.Neurons;
 
@@ -17,7 +18,7 @@ public sealed class KairosNetwork
     public int TotalFeatures => SubregionCount * 24; // 24 = 4! per subregion
 
     private readonly ModularSubregion[] _subregions;
-    private readonly double[][] _projectionWeights; // Fixed normalized random projection
+    private readonly double[] _projectionWeights; // Fixed normalized random projection, flattened (TotalNeurons x FilterPoints) for cache/SIMD friendliness
     private readonly FilterCoord[]? _coords250;
 
     public readonly struct FilterCoord
@@ -43,17 +44,18 @@ public sealed class KairosNetwork
             _subregions[m] = new ModularSubregion(baseThreshold: 0.75, decayRate: 0.90, lateralInhibitionBoost: 0.20);
         }
 
-        // Initialize fixed normalized random projections
+        // Initialize fixed normalized random projections (flattened contiguous layout).
+        // The RNG call order is preserved to keep seeded weights bit-identical to the previous jagged layout.
         var rng = new Random(seed);
-        _projectionWeights = new double[TotalNeurons][];
+        _projectionWeights = new double[TotalNeurons * FilterPoints];
         for (int i = 0; i < TotalNeurons; i++)
         {
-            _projectionWeights[i] = new double[FilterPoints];
+            int offset = i * FilterPoints;
             double sumSq = 0.0;
             for (int k = 0; k < FilterPoints; k++)
             {
                 double val = (rng.NextDouble() * 2.0) - 1.0;
-                _projectionWeights[i][k] = val;
+                _projectionWeights[offset + k] = val;
                 sumSq += val * val;
             }
 
@@ -63,7 +65,7 @@ public sealed class KairosNetwork
             {
                 for (int k = 0; k < FilterPoints; k++)
                 {
-                    _projectionWeights[i][k] /= norm;
+                    _projectionWeights[offset + k] /= norm;
                 }
             }
         }
@@ -71,7 +73,7 @@ public sealed class KairosNetwork
         _coords250 = PrecomputeCoordinates(subregionCount, 250);
     }
 
-    private KairosNetwork(int subregionCount, double[][] projectionWeights, FilterCoord[]? coords250)
+    private KairosNetwork(int subregionCount, double[] projectionWeights, FilterCoord[]? coords250)
     {
         SubregionCount = subregionCount;
         _projectionWeights = projectionWeights;
@@ -88,6 +90,28 @@ public sealed class KairosNetwork
     /// Thread-safe for parallel signal encoding.
     /// </summary>
     public KairosNetwork Clone() => new KairosNetwork(SubregionCount, _projectionWeights, _coords250);
+
+    /// <summary>
+    /// SIMD-accelerated dot product over exactly <see cref="FilterPoints"/> elements.
+    /// Falls back to a scalar tail loop for architectures whose vector width does not divide the length.
+    /// </summary>
+    private static double DotProduct(ReadOnlySpan<double> a, ReadOnlySpan<double> b)
+    {
+        int width = Vector<double>.Count;
+        Vector<double> acc = Vector<double>.Zero;
+        int i = 0;
+        for (; i <= FilterPoints - width; i += width)
+        {
+            acc += new Vector<double>(a.Slice(i, width)) * new Vector<double>(b.Slice(i, width));
+        }
+
+        double sum = Vector.Dot(acc, Vector<double>.One);
+        for (; i < FilterPoints; i++)
+        {
+            sum += a[i] * b[i];
+        }
+        return sum;
+    }
 
     private static FilterCoord[] PrecomputeCoordinates(int subregionCount, int length)
     {
@@ -224,15 +248,9 @@ public sealed class KairosNetwork
 
                 for (int n = 0; n < ModularSubregion.SubregionSize; n++)
                 {
-                    double current = 0.0;
-                    double[] w = _projectionWeights[baseNeuronIdx + n];
-
-                    for (int k = 0; k < FilterPoints; k++)
-                    {
-                        current += sampledPoints[k] * w[k];
-                        frontEndMacs++;
-                    }
-
+                    var w = _projectionWeights.AsSpan((baseNeuronIdx + n) * FilterPoints, FilterPoints);
+                    double current = DotProduct(sampledPoints, w);
+                    frontEndMacs += FilterPoints;
                     currents[n] = Math.Max(0.0, current);
                 }
 
@@ -242,6 +260,7 @@ public sealed class KairosNetwork
 
         // Build feature vector via Lehmer code weighted by firing fraction
         double[] features = new double[TotalFeatures];
+        Span<int> order = stackalloc int[ModularSubregion.SubregionSize];
 
         for (int m = 0; m < SubregionCount; m++)
         {
@@ -255,7 +274,7 @@ public sealed class KairosNetwork
 
             if (firedCount >= 2)
             {
-                int[] order = _subregions[m].GetFirstSpikeOrder();
+                _subregions[m].GetFirstSpikeOrder(order);
                 int lehmerIdx = CombinatorialTable.PermutationToLehmerIndex(order);
                 int featureOffset = (m * 24) + lehmerIdx;
                 // Weighting proportional to the fraction of fired neurons

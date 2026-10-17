@@ -24,7 +24,9 @@ public static class TrainEcgCommand
         bool calibrateThresholds = true,
         bool useOvr = false,
         double[]? weightPowers = null,
-        int cvFolds = 0)
+        int cvFolds = 0,
+        IReadOnlyList<KaggleEcgSample>? preloadedSamples = null,
+        bool runDiagnostics = true)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("          KAIROS103 - KAGGLE ECG ARRHYTHMIA TRAINING PIPELINE             ");
@@ -37,11 +39,20 @@ public static class TrainEcgCommand
         }
 
         var sw = Stopwatch.StartNew();
-        Console.WriteLine($"Loading Kaggle train dataset from: {trainPath}...");
-        var allSamples = KaggleEcgDataset.LoadTrain(trainPath);
-        sw.Stop();
-
-        Console.WriteLine($"Loaded {allSamples.Count:N0} samples in {sw.ElapsedMilliseconds} ms.");
+        List<KaggleEcgSample> allSamples;
+        if (preloadedSamples != null && preloadedSamples.Count > 0)
+        {
+            // Reuse the dataset already parsed by the caller (avoids re-reading the CSV per ensemble member).
+            allSamples = preloadedSamples as List<KaggleEcgSample> ?? preloadedSamples.ToList();
+            Console.WriteLine($"Reusing preloaded Kaggle train dataset: {allSamples.Count:N0} samples.");
+        }
+        else
+        {
+            Console.WriteLine($"Loading Kaggle train dataset from: {trainPath}...");
+            allSamples = KaggleEcgDataset.LoadTrain(trainPath);
+            sw.Stop();
+            Console.WriteLine($"Loaded {allSamples.Count:N0} samples in {sw.ElapsedMilliseconds} ms.");
+        }
 
         // Report class distribution
         var classCounts = new int[4];
@@ -61,7 +72,7 @@ public static class TrainEcgCommand
         // K-Fold Cross Validation mode
         if (cvFolds >= 2)
         {
-            ExecuteKFoldsOof(allSamples, modelPath, cvFolds, epochs, lr, hiddenDim, subregions, seed, useOvr, weightPower, weightPowers);
+            ExecuteKFoldsOof(allSamples, modelPath, cvFolds, epochs, lr, hiddenDim, subregions, seed, useOvr, weightPower, weightPowers, runDiagnostics);
             return;
         }
 
@@ -245,8 +256,11 @@ public static class TrainEcgCommand
         Console.WriteLine($"Model checkpoint successfully saved to: {modelPath}");
 
         // Run ECG Diagnostics (CR-D1)
-        EcgDiagnostics.ReportRPeakPlacement(allSamples);
-        EcgDiagnostics.ReportTemplateSeparability(allSamples);
+        if (runDiagnostics)
+        {
+            EcgDiagnostics.ReportRPeakPlacement(allSamples);
+            EcgDiagnostics.ReportTemplateSeparability(allSamples);
+        }
 
         Console.WriteLine("==========================================================================\n");
     }
@@ -262,7 +276,8 @@ public static class TrainEcgCommand
         int seed,
         bool useOvr,
         double weightPower,
-        double[]? weightPowers)
+        double[]? weightPowers,
+        bool runDiagnostics = true)
     {
         Console.WriteLine($"\n[K-FOLD CV] Running {cvFolds}-Fold Stratified Cross-Validation (Seed: {seed})...");
         var folds = KaggleEcgDataset.StratifiedKFolds(allSamples, cvFolds, seed);
@@ -397,8 +412,11 @@ public static class TrainEcgCommand
         Console.WriteLine($"  kairos predict-kaggle --model {string.Join(",", foldModels)} --test test.csv --out submission.csv");
 
         // Run ECG Diagnostics (CR-D1)
-        EcgDiagnostics.ReportRPeakPlacement(allSamples);
-        EcgDiagnostics.ReportTemplateSeparability(allSamples);
+        if (runDiagnostics)
+        {
+            EcgDiagnostics.ReportRPeakPlacement(allSamples);
+            EcgDiagnostics.ReportTemplateSeparability(allSamples);
+        }
 
         Console.WriteLine("==========================================================================\n");
     }

@@ -41,6 +41,7 @@ if (args.Length == 0)
               "  [5] Ejecutar Benchmark comparativo (Kairos103 vs Transformer vs LSTM)\n" +
               "  [6] Ver ayuda de comandos CLI\n" +
               "  [7] Cambiar idioma / Change language (Español / English)\n" +
+              "  [8] Pipeline completo Kaggle ECG (entrenar ensamble + generar submission.csv)\n" +
               "  [0] Salir"
             : "  [1] Train black-box model\n" +
               "  [2] Evaluate existing model (.kairos) with confusion matrix\n" +
@@ -49,6 +50,7 @@ if (args.Length == 0)
               "  [5] Run comparative benchmark (Kairos103 vs Transformer vs LSTM)\n" +
               "  [6] Show CLI help\n" +
               "  [7] Change language / Cambiar idioma (English / Español)\n" +
+              "  [8] Full Kaggle ECG pipeline (train ensemble + generate submission.csv)\n" +
               "  [0] Exit");
 
         Console.Write("\n> ");
@@ -148,6 +150,40 @@ if (args.Length == 0)
                     CliStrings.SaveLanguagePreference("en");
                     Console.WriteLine("\n[OK] Language set to English.");
                 }
+                break;
+            }
+
+            case "8":
+            {
+                string defTrain = "datasets/nppe2_dataset/train.csv";
+                string defTest = "datasets/nppe2_dataset/test.csv";
+                string defSample = "datasets/nppe2_dataset/sample_submission.csv";
+
+                Console.Write(CliStrings.IsSpanish ? $"\nCSV de entrenamiento [Enter = {defTrain}]: " : $"\nTraining CSV [Enter = {defTrain}]: ");
+                string train = Console.ReadLine()?.Trim() ?? "";
+                if (string.IsNullOrEmpty(train)) train = defTrain;
+
+                Console.Write(CliStrings.IsSpanish ? $"CSV de prueba (test) [Enter = {defTest}]: " : $"Test CSV [Enter = {defTest}]: ");
+                string test = Console.ReadLine()?.Trim() ?? "";
+                if (string.IsNullOrEmpty(test)) test = defTest;
+
+                Console.Write(CliStrings.IsSpanish ? $"sample_submission.csv [Enter = {defSample}]: " : $"sample_submission.csv [Enter = {defSample}]: ");
+                string sample = Console.ReadLine()?.Trim() ?? "";
+                if (string.IsNullOrEmpty(sample)) sample = defSample;
+
+                string defOut = "submission.csv";
+                Console.Write(CliStrings.IsSpanish ? $"Salida submission [Enter = {defOut}]: " : $"Submission output [Enter = {defOut}]: ");
+                string outPath = Console.ReadLine()?.Trim() ?? "";
+                if (string.IsNullOrEmpty(outPath)) outPath = defOut;
+
+                Console.Write(CliStrings.IsSpanish
+                    ? "\n¿Usar ensamble de 3 semillas (42, 777, 20261010)? (s/n) [Enter = s]: "
+                    : "\nUse 3-seed ensemble (42, 777, 20261010)? (y/n) [Enter = y]: ");
+                string ensAns = Console.ReadLine()?.Trim().ToLowerInvariant() ?? "s";
+                bool useEnsemble = ensAns != "n" && ensAns != "no";
+
+                int[] seeds = useEnsemble ? [42, 777, 20261010] : [42];
+                KagglePipelineCommand.Execute(train, test, outPath, sample, seeds: seeds);
                 break;
             }
 
@@ -577,6 +613,13 @@ switch (command)
         }
 
         PredictKaggleCommand.Execute(modelPath, testPath, outputPath, sampleSubPath, customThresholds);
+        break;
+    }
+
+    case "kaggle-pipeline":
+    case "run-kaggle":
+    {
+        KagglePipelineCommand.ExecuteFromArgs(args);
         break;
     }
 

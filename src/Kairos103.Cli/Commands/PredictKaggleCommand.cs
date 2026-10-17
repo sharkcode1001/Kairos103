@@ -96,6 +96,11 @@ public static class PredictKaggleCommand
             }
         }
 
+        if (classifiers.Count == 1)
+        {
+            classifiers[0].Thresholds = activeThresholds;
+        }
+
         Console.WriteLine($"Loading test dataset from: {testPath}...");
         var sw = Stopwatch.StartNew();
         var testSamples = KaggleEcgDataset.LoadTest(testPath);

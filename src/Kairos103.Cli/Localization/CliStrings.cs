@@ -208,7 +208,8 @@ public static class CliStrings
               "  -- Kaggle ECG Competition (Macro F1) --\n" +
               "  dotnet run --project src/Kairos103.Cli -- train-ecg --train <train.csv> --model <model.kairos> [--subregions 32] [--hidden 48] [--ovr] [--full-train] [--epochs 30] [--val-split 0.2] [--weight-power 0.5] [--no-baselines]\n" +
               "  dotnet run --project src/Kairos103.Cli -- validate-ecg --model <model.kairos> --train <train.csv> [--val-split 0.2]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv> [--thresholds t0,t1,t2,t3]"
+              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv> [--thresholds t0,t1,t2,t3]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- kaggle-pipeline [--train <train.csv>] [--test <test.csv>] [--sample-submission <sample.csv>] [--output <sub.csv>] [--seeds 42,777,20261010] [--subregions 40] [--epochs 28]"
             : "Available usage:\n" +
               "  -- Language Configuration --\n" +
               "  dotnet run --project src/Kairos103.Cli -- --lang es|en [command]\n\n" +
@@ -224,5 +225,6 @@ public static class CliStrings
               "  -- Kaggle ECG Competition (Macro F1) --\n" +
               "  dotnet run --project src/Kairos103.Cli -- train-ecg --train <train.csv> --model <model.kairos> [--subregions 32] [--hidden 48] [--ovr] [--full-train] [--epochs 30] [--val-split 0.2] [--weight-power 0.5] [--no-baselines]\n" +
               "  dotnet run --project src/Kairos103.Cli -- validate-ecg --model <model.kairos> --train <train.csv> [--val-split 0.2]\n" +
-              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv> [--thresholds t0,t1,t2,t3]";
+              "  dotnet run --project src/Kairos103.Cli -- predict-kaggle --model <model.kairos> --test <test.csv> --sample-submission <sample.csv> --output <sub.csv> [--thresholds t0,t1,t2,t3]\n" +
+              "  dotnet run --project src/Kairos103.Cli -- kaggle-pipeline [--train <train.csv>] [--test <test.csv>] [--sample-submission <sample.csv>] [--output <sub.csv>] [--seeds 42,777,20261010] [--subregions 40] [--epochs 28]";
 }

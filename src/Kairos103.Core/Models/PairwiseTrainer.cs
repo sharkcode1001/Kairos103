@@ -431,9 +431,9 @@ public sealed class PairwiseTrainer
     }
 
     /// <summary>
-    /// Computes class probabilities using Softmax over logits.
+    /// Computes raw (pre-softmax) class logits. Additive per-class decision biases are applied on these values.
     /// </summary>
-    public double[] PredictProbabilities(double[] features)
+    public double[] PredictLogits(double[] features)
     {
         double[] logits = new double[ClassCount];
 
@@ -472,6 +472,16 @@ public sealed class PairwiseTrainer
                 logits[c] = sum;
             }
         }
+
+        return logits;
+    }
+
+    /// <summary>
+    /// Computes class probabilities using Softmax over logits.
+    /// </summary>
+    public double[] PredictProbabilities(double[] features)
+    {
+        double[] logits = PredictLogits(features);
 
         double maxLogit = logits.Max();
         double[] probs = new double[ClassCount];

@@ -96,6 +96,33 @@ public static class PredictKaggleCommand
             }
         }
 
+        double[]? activeBias = null;
+        if (customThresholds == null)
+        {
+            int classCount = classifiers[0].ClassCount;
+            var biasSum = new double[classCount];
+            int countWithBias = 0;
+            for (int m = 0; m < classifiers.Count; m++)
+            {
+                var b = classifiers[m].DecisionBias;
+                if (b != null && b.Length == classCount)
+                {
+                    for (int c = 0; c < classCount; c++) biasSum[c] += b[c];
+                    countWithBias++;
+                }
+            }
+            if (countWithBias > 0)
+            {
+                for (int c = 0; c < classCount; c++) biasSum[c] /= countWithBias;
+                activeBias = biasSum;
+                Console.WriteLine($"  Applying additive logit biases (ensemble avg of {countWithBias} models): [{string.Join(", ", activeBias.Select((b, c) => $"Class {c}={b:F3}"))}]");
+            }
+        }
+        else
+        {
+            Console.WriteLine("  [INFO] User-specified custom thresholds take precedence over model decision bias.");
+        }
+
         if (classifiers.Count == 1)
         {
             classifiers[0].Thresholds = activeThresholds;
@@ -152,6 +179,36 @@ public static class PredictKaggleCommand
             if (classifiers.Count == 1)
             {
                 pred = classifiers[0].Predict(combinedSignal, effectiveLength: KaggleEcgSample.WaveformLength);
+            }
+            else if (activeBias != null)
+            {
+                Array.Clear(ensembleProbs, 0, 4);
+                for (int m = 0; m < classifiers.Count; m++)
+                {
+                    double[] logits = classifiers[m].PredictCalibratedLogits(combinedSignal, effectiveLength: KaggleEcgSample.WaveformLength);
+                    for (int c = 0; c < 4; c++)
+                    {
+                        ensembleProbs[c] += logits[c];
+                    }
+                }
+
+                double invM = 1.0 / classifiers.Count;
+                for (int c = 0; c < 4; c++)
+                {
+                    ensembleProbs[c] = ensembleProbs[c] * invM + activeBias[c];
+                }
+
+                int bestBias = 0;
+                double bestBiasScore = ensembleProbs[0];
+                for (int c = 1; c < 4; c++)
+                {
+                    if (ensembleProbs[c] > bestBiasScore)
+                    {
+                        bestBiasScore = ensembleProbs[c];
+                        bestBias = c;
+                    }
+                }
+                pred = bestBias;
             }
             else
             {

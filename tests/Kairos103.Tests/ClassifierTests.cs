@@ -143,4 +143,79 @@ public class ClassifierTests
             Assert.True(acc >= 0.95, $"Expected accuracy >= 0.95 on synthetic 1.0x, got {acc}");
         }
     }
+
+    [Fact]
+    public void OptimizeDecisionBias_RecoversCollapsedMinorityClass()
+    {
+        var logits = new List<double[]>();
+        var actuals = new List<int>();
+
+        // Class 0 wins the raw argmax on class-2 samples; an additive class-2 bias is required.
+        for (int i = 0; i < 50; i++) { logits.Add([1.0, 0.0, 0.3]); actuals.Add(0); }
+        for (int i = 0; i < 50; i++) { logits.Add([0.2, 1.0, 0.0]); actuals.Add(1); }
+        for (int i = 0; i < 50; i++) { logits.Add([1.0, 0.0, 0.8]); actuals.Add(2); }
+
+        double[] bias = KairosClassifier.OptimizeDecisionBias(logits.ToArray(), actuals, 3, out double bestF1);
+
+        // Baselines: raw argmax collapses class 2; the optimizer must pull Macro F1 above that.
+        double collapsedF1 = MacroF1FromArgMax(logits, actuals, new double[3]);
+        Assert.True(bestF1 > collapsedF1 + 0.2, $"Expected optimized Macro F1 ({bestF1}) to beat raw argmax ({collapsedF1}).");
+        Assert.True(bias.Any(b => Math.Abs(b) > 0.1), "Expected at least one non-zero decision bias.");
+    }
+
+    private static double MacroF1FromArgMax(List<double[]> logits, List<int> actuals, double[] bias)
+    {
+        var preds = new int[logits.Count];
+        for (int i = 0; i < logits.Count; i++)
+        {
+            int best = 0;
+            double bestScore = logits[i][0] + bias[0];
+            for (int c = 1; c < bias.Length; c++)
+            {
+                double s = logits[i][c] + bias[c];
+                if (s > bestScore) { bestScore = s; best = c; }
+            }
+            preds[i] = best;
+        }
+        return Kairos103.Core.Evaluation.MacroF1Metrics.Compute(actuals, preds, bias.Length).MacroF1;
+    }
+
+    [Fact]
+    public void DecisionBias_OverridesArgMax_AndRoundTripsThroughSaveLoad()
+    {
+        int seqLen = 40;
+        var signals = new List<double[]>();
+        var labels = new List<int>();
+        for (int i = 0; i < 20; i++)
+        {
+            double[] s0 = new double[seqLen];
+            for (int t = 0; t < seqLen; t++) s0[t] = Math.Sin(2 * Math.PI * t / 20.0);
+            signals.Add(s0);
+            labels.Add(0);
+
+            double[] s1 = new double[seqLen];
+            for (int t = 0; t < seqLen; t++) s1[t] = (t % 10 < 5) ? 1.0 : -1.0;
+            signals.Add(s1);
+            labels.Add(1);
+        }
+
+        var classifier = new KairosClassifier(subregionCount: 8, seed: 42);
+        classifier.Fit(signals, labels, epochs: 10, lr: 0.05);
+        classifier.DecisionBias = [0.0, 1000.0];
+
+        Assert.Equal(1, classifier.Predict(signals[0]));
+
+        string path = Path.Combine(Path.GetTempPath(), $"kairos_bias_{Guid.NewGuid():N}.kairos");
+        try
+        {
+            classifier.Save(path);
+            var loaded = KairosClassifier.Load(path);
+            Assert.Equal(1000.0, loaded.DecisionBias[1]);
+            Assert.Equal(1, loaded.Predict(signals[0]));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }

@@ -420,6 +420,38 @@ public static class KaggleEcgDataset
     }
 
     /// <summary>
+    /// Partitions sample indices into K stratified folds preserving class distribution across each fold.
+    /// </summary>
+    public static List<List<int>> StratifiedKFoldIndices(IReadOnlyList<KaggleEcgSample> samples, int kFolds = 5, int seed = 42)
+    {
+        if (kFolds < 2) throw new ArgumentOutOfRangeException(nameof(kFolds), "kFolds must be >= 2");
+        var folds = new List<List<int>>(kFolds);
+        for (int k = 0; k < kFolds; k++) folds.Add(new List<int>());
+
+        var groups = samples.Select((s, idx) => (s.Label, idx))
+                            .GroupBy(x => x.Label)
+                            .ToDictionary(g => g.Key, g => g.Select(x => x.idx).ToList());
+        var rng = new Random(seed);
+
+        foreach (var kvp in groups)
+        {
+            var list = kvp.Value;
+            Shuffle(list, rng);
+            for (int i = 0; i < list.Count; i++)
+            {
+                folds[i % kFolds].Add(list[i]);
+            }
+        }
+
+        for (int k = 0; k < kFolds; k++)
+        {
+            Shuffle(folds[k], rng);
+        }
+
+        return folds;
+    }
+
+    /// <summary>
     /// Computes balanced class weights inversely proportional to class frequencies:
     /// w_c = (N / (C * N_c))^power
     /// power=1.0 is exact inverse frequency; power=0.5 (default) is smoothed square-root inverse frequency to prevent rare class over-prediction.

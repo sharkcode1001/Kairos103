@@ -135,23 +135,33 @@ public sealed class OvrTrainer
     }
 
     /// <summary>
+    /// Computes Platt-calibrated logits (a_c * z_c + b_c) for all classes. Falls back to raw logits when uncalibrated.
+    /// These are the values on which additive per-class decision biases should be applied.
+    /// </summary>
+    public double[] PredictCalibratedLogits(ReadOnlySpan<double> features)
+    {
+        double[] logits = PredictLogits(features);
+        if (CalibScale != null && CalibScale.Length == ClassCount &&
+            CalibBias != null && CalibBias.Length == ClassCount)
+        {
+            for (int c = 0; c < ClassCount; c++)
+            {
+                logits[c] = CalibScale[c] * logits[c] + CalibBias[c];
+            }
+        }
+        return logits;
+    }
+
+    /// <summary>
     /// Computes predicted sigmoid probabilities for all classes independently, applying Platt scaling if fitted.
     /// </summary>
     public double[] PredictProbabilities(ReadOnlySpan<double> features)
     {
-        double[] logits = PredictLogits(features);
+        double[] logits = PredictCalibratedLogits(features);
         double[] probs = new double[ClassCount];
-        bool hasCalib = CalibScale != null && CalibScale.Length == ClassCount &&
-                        CalibBias != null && CalibBias.Length == ClassCount;
-
         for (int c = 0; c < ClassCount; c++)
         {
-            double z = logits[c];
-            if (hasCalib)
-            {
-                z = CalibScale![c] * z + CalibBias![c];
-            }
-            probs[c] = Sigmoid(z);
+            probs[c] = Sigmoid(logits[c]);
         }
         return probs;
     }

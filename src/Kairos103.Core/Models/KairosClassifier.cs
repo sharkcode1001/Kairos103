@@ -37,6 +37,7 @@ public sealed class KairosModelMetadata
     public double[][] W2 { get; set; } = [];
     public double[] B2 { get; set; } = [];
     public double[] Thresholds { get; set; } = [];
+    public double[] DecisionBias { get; set; } = [];
     public double[] CalibScale { get; set; } = [];
     public double[] CalibBias { get; set; } = [];
     public bool IsOvr { get; set; } = false;
@@ -57,6 +58,12 @@ public sealed class KairosClassifier
     public int ClassCount { get; private set; }
     public bool IsTrained { get; private set; }
     public double[] Thresholds { get; set; } = [];
+
+    /// <summary>
+    /// Additive per-class biases applied on calibrated logits at decision time: argmax_c(logit_c + Bias_c).
+    /// When empty, the legacy probability/threshold decision rule is used instead.
+    /// </summary>
+    public double[] DecisionBias { get; set; } = [];
     public double[] CalibScale
     {
         get => _ovrTrainer?.CalibScale ?? _calibScale;
@@ -467,10 +474,6 @@ public sealed class KairosClassifier
         if (valSamples == null || valSamples.Count == 0)
             throw new ArgumentException("Validation samples cannot be empty.", nameof(valSamples));
 
-        int maxLabel = Math.Max(trainSamples.Max(s => s.Label), valSamples.Max(s => s.Label));
-        int uniqueLabels = trainSamples.Select(s => s.Label).Union(valSamples.Select(s => s.Label)).Distinct().Count();
-        ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
-
         int auxCount = 0;
         if (trainSamples.Count > 0 && trainSamples[0].Values.Length > trainSamples[0].EffectiveLength && trainSamples[0].EffectiveLength > 0)
         {
@@ -478,20 +481,57 @@ public sealed class KairosClassifier
         }
 
         int totalInputDim = _network.TotalFeatures + auxCount;
-        _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
-        _trainer = null;
-        Thresholds = Enumerable.Repeat(1.0, ClassCount).ToArray();
-
         Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features (OvR Architecture)...");
         Console.Out.Flush();
         var encodedTrain = EncodeSamples(trainSamples, auxCount, totalInputDim, "train");
         var encodedVal = EncodeSamples(valSamples, auxCount, totalInputDim, "val");
         Console.WriteLine($"[1/2] Feature extraction complete. Feature vector dimension: {totalInputDim}\n");
+
+        return FitOvrWithValidation(
+            encodedTrain,
+            encodedVal,
+            epochs: epochs,
+            lr: lr,
+            hiddenDim: hiddenDim,
+            weightPower: weightPower,
+            onEpochCompleted: onEpochCompleted,
+            calibrateThresholds: calibrateThresholds,
+            weightPowers: weightPowers);
+    }
+
+    /// <summary>
+    /// Fits the OvR model directly from pre-encoded feature vectors, avoiding redundant neuromorphic front-end re-computation.
+    /// </summary>
+    public MacroF1Result FitOvrWithValidation(
+        IReadOnlyList<(double[] Features, int Label)> encodedTrain,
+        IReadOnlyList<(double[] Features, int Label)> encodedVal,
+        int epochs = 30,
+        double lr = 0.02,
+        int hiddenDim = 32,
+        double weightPower = 0.5,
+        Action<int, int, double, double>? onEpochCompleted = null,
+        bool calibrateThresholds = true,
+        double[]? weightPowers = null)
+    {
+        if (encodedTrain == null || encodedTrain.Count == 0)
+            throw new ArgumentException("Encoded train samples cannot be empty.", nameof(encodedTrain));
+        if (encodedVal == null || encodedVal.Count == 0)
+            throw new ArgumentException("Encoded val samples cannot be empty.", nameof(encodedVal));
+
+        int maxLabel = Math.Max(encodedTrain.Max(s => s.Label), encodedVal.Max(s => s.Label));
+        int uniqueLabels = encodedTrain.Select(s => s.Label).Union(encodedVal.Select(s => s.Label)).Distinct().Count();
+        ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
+
+        int totalInputDim = encodedTrain[0].Features.Length;
+        _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+        _trainer = null;
+        Thresholds = Enumerable.Repeat(1.0, ClassCount).ToArray();
+
         Console.WriteLine($"[2/2] Training {ClassCount} independent OvR binary heads ({epochs} epochs, Adam optimizer)...");
         Console.Out.Flush();
 
-        var valActuals = valSamples.Select(s => s.Label).ToArray();
-        var valPreds = new int[valSamples.Count];
+        var valActuals = encodedVal.Select(s => s.Label).ToArray();
+        var valPreds = new int[encodedVal.Count];
 
         int nTrain = encodedTrain.Count;
         double[] posWeights = new double[ClassCount];
@@ -651,6 +691,24 @@ public sealed class KairosClassifier
     }
 
     /// <summary>
+    /// Converts a collection of signal samples into neuromorphic rank-order features and auxiliary clinical features.
+    /// Can be executed once and reused across cross-validation folds.
+    /// </summary>
+    public IReadOnlyList<(double[] Features, int Label)> EncodeSamples(
+        IReadOnlyList<SignalSample> samples,
+        string phaseName = "signals")
+    {
+        if (samples == null || samples.Count == 0) return [];
+        int auxCount = 0;
+        if (samples.Count > 0 && samples[0].Values.Length > samples[0].EffectiveLength && samples[0].EffectiveLength > 0)
+        {
+            auxCount = samples[0].Values.Length - samples[0].EffectiveLength;
+        }
+        int totalInputDim = _network.TotalFeatures + auxCount;
+        return EncodeSamples(samples, auxCount, totalInputDim, phaseName);
+    }
+
+    /// <summary>
     /// Fits the model from parallel raw signals and integer labels.
     /// </summary>
     public void Fit(
@@ -693,6 +751,12 @@ public sealed class KairosClassifier
     /// </summary>
     public int Predict(ReadOnlySpan<double> signal, int effectiveLength = -1)
     {
+        if (DecisionBias != null && DecisionBias.Length == ClassCount)
+        {
+            double[] logits = PredictCalibratedLogits(signal, effectiveLength);
+            return ArgMaxBias(logits, DecisionBias);
+        }
+
         if (Thresholds != null && Thresholds.Length == ClassCount)
         {
             double[] probs = PredictProbabilities(signal, effectiveLength);
@@ -795,6 +859,166 @@ public sealed class KairosClassifier
         return 1.0 / (1.0 + Math.Exp(-z));
     }
 
+    /// <summary>
+    /// Computes calibrated decision logits for a 1D signal with optional auxiliary features.
+    /// For OvR models this is the Platt-calibrated logit (a_c*z_c + b_c); for softmax models it is the raw logit.
+    /// These are the values on which <see cref="DecisionBias"/> is applied.
+    /// </summary>
+    public double[] PredictCalibratedLogits(ReadOnlySpan<double> signal, int effectiveLength = -1)
+    {
+        EnsureTrained();
+        int len = effectiveLength > 0 ? effectiveLength : signal.Length;
+        var (feats, _) = _network.Forward(signal, len);
+
+        int featDim = _ovrTrainer?.FeatureDim ?? _trainer!.FeatureDim;
+        double[] inputFeats = feats;
+        int auxCount = signal.Length - len;
+        if (auxCount > 0)
+        {
+            if (featDim != _network.TotalFeatures + auxCount)
+            {
+                throw new InvalidOperationException(
+                    $"Feature dimension mismatch! Model expects {featDim} features " +
+                    $"({_network.TotalFeatures} neuromorphic + {featDim - _network.TotalFeatures} aux), " +
+                    $"but input signal provided {auxCount} auxiliary features (Total: {_network.TotalFeatures + auxCount}).");
+            }
+
+            inputFeats = new double[featDim];
+            Array.Copy(feats, inputFeats, _network.TotalFeatures);
+            for (int a = 0; a < auxCount; a++)
+            {
+                inputFeats[_network.TotalFeatures + a] = signal[len + a];
+            }
+        }
+
+        if (_ovrTrainer != null)
+        {
+            return _ovrTrainer.PredictCalibratedLogits(inputFeats);
+        }
+        return _trainer!.PredictLogits(inputFeats);
+    }
+
+    /// <summary>
+    /// Computes calibrated logits directly from a pre-extracted feature vector without running front-end LIF.
+    /// </summary>
+    public double[] PredictCalibratedLogitsFromFeatures(ReadOnlySpan<double> features)
+    {
+        EnsureTrained();
+        if (_ovrTrainer != null)
+        {
+            return _ovrTrainer.PredictCalibratedLogits(features);
+        }
+        return _trainer!.PredictLogits(features.ToArray());
+    }
+
+    /// <summary>
+    /// Computes class probabilities directly from a pre-extracted feature vector without running front-end LIF.
+    /// </summary>
+    public double[] PredictProbabilitiesFromFeatures(ReadOnlySpan<double> features)
+    {
+        EnsureTrained();
+        if (_ovrTrainer != null)
+        {
+            return _ovrTrainer.PredictProbabilities(features);
+        }
+        return _trainer!.PredictProbabilities(features.ToArray());
+    }
+
+    /// <summary>
+    /// Returns the index maximizing logit_c + bias_c (class 0 wins ties).
+    /// </summary>
+    public static int ArgMaxBias(IReadOnlyList<double> logits, IReadOnlyList<double> bias)
+    {
+        int best = 0;
+        double bestScore = logits[0] + bias[0];
+        for (int c = 1; c < logits.Count; c++)
+        {
+            double s = logits[c] + bias[c];
+            if (s > bestScore)
+            {
+                bestScore = s;
+                best = c;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Optimizes additive per-class decision biases on calibrated logits to maximize Macro F1.
+    /// Uses coordinate ascent over a coarse-to-fine candidate grid with repeated sweeps.
+    /// </summary>
+    public static double[] OptimizeDecisionBias(double[][] logits, IReadOnlyList<int> actuals, int classCount, out double bestMacroF1)
+    {
+        if (logits == null) throw new ArgumentNullException(nameof(logits));
+        if (actuals == null) throw new ArgumentNullException(nameof(actuals));
+        if (logits.Length != actuals.Count) throw new ArgumentException("logits and actuals must have equal length.");
+        if (classCount < 2) throw new ArgumentOutOfRangeException(nameof(classCount));
+
+        int n = logits.Length;
+        int[] preds = new int[n];
+        double[] bias = new double[classCount];
+
+        double Evaluate(double[] b)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                double[] z = logits[i];
+                int best = 0;
+                double bestScore = z[0] + b[0];
+                for (int c = 1; c < classCount; c++)
+                {
+                    double s = z[c] + b[c];
+                    if (s > bestScore)
+                    {
+                        bestScore = s;
+                        best = c;
+                    }
+                }
+                preds[i] = best;
+            }
+            return MacroF1Metrics.Compute(actuals, preds, classCount).MacroF1;
+        }
+
+        double best = Evaluate(bias);
+
+        double[] coarse = [-3.0, -2.0, -1.5, -1.0, -0.7, -0.5, -0.3, -0.15, 0.0, 0.15, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0];
+        double[] fine = [-0.08, -0.05, -0.03, -0.015, 0.0, 0.015, 0.03, 0.05, 0.08];
+
+        Sweep(bias, coarse, Evaluate, ref best);
+        Sweep(bias, fine, Evaluate, ref best);
+
+        bestMacroF1 = Evaluate(bias);
+        return bias;
+    }
+
+    private static void Sweep(double[] bias, double[] offsets, Func<double[], double> evaluate, ref double best)
+    {
+        bool improved = true;
+        int sweeps = 0;
+        while (improved && sweeps < 4)
+        {
+            improved = false;
+            for (int c = 0; c < bias.Length; c++)
+            {
+                double origin = bias[c];
+                double bestVal = origin;
+                foreach (double d in offsets)
+                {
+                    bias[c] = origin + d;
+                    double f = evaluate(bias);
+                    if (f > best + 1e-9)
+                    {
+                        best = f;
+                        bestVal = bias[c];
+                        improved = true;
+                    }
+                }
+                bias[c] = bestVal;
+            }
+            sweeps++;
+        }
+    }
+
     private double[] GetTrainerLogits(double[] features)
     {
         double[] probs = _trainer!.PredictProbabilities(features);
@@ -833,10 +1057,25 @@ public sealed class KairosClassifier
 
         if (_ovrTrainer != null)
         {
-            var (pred, accOps) = _ovrTrainer.Predict(inputFeats, Thresholds);
+            int accOps = ClassCount * (_ovrTrainer.HiddenDim * _ovrTrainer.FeatureDim + _ovrTrainer.HiddenDim);
+            int pred;
+            if (DecisionBias != null && DecisionBias.Length == ClassCount)
+            {
+                var logits = _ovrTrainer.PredictCalibratedLogits(inputFeats);
+                pred = ArgMaxBias(logits, DecisionBias);
+            }
+            else
+            {
+                (pred, _) = _ovrTrainer.Predict(inputFeats, Thresholds);
+            }
             return (pred, spikes, macs, accOps, inputFeats);
         }
         var (predTr, accOpsTr) = _trainer!.Predict(inputFeats);
+        if (DecisionBias != null && DecisionBias.Length == ClassCount)
+        {
+            var logits = _trainer!.PredictLogits(inputFeats);
+            predTr = ArgMaxBias(logits, DecisionBias);
+        }
         return (predTr, spikes, macs, accOpsTr, inputFeats);
     }
 
@@ -914,6 +1153,7 @@ public sealed class KairosClassifier
             TotalFeatures = TotalFeatures,
             HiddenDim = HiddenDim,
             Thresholds = Thresholds,
+            DecisionBias = DecisionBias,
             CalibScale = CalibScale,
             CalibBias = CalibBias,
             IsOvr = IsOvr,
@@ -959,6 +1199,7 @@ public sealed class KairosClassifier
             ClassCount = meta.ClassCount,
             IsTrained = true,
             Thresholds = meta.Thresholds ?? [],
+            DecisionBias = meta.DecisionBias ?? [],
             CalibScale = meta.CalibScale ?? [],
             CalibBias = meta.CalibBias ?? []
         };

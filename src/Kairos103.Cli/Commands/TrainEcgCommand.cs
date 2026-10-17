@@ -9,7 +9,7 @@ namespace Kairos103.Cli.Commands;
 
 public static class TrainEcgCommand
 {
-    public static void Execute(
+    public static List<string> Execute(
         string trainPath,
         string modelPath,
         int epochs = 35,
@@ -35,7 +35,7 @@ public static class TrainEcgCommand
         if (!File.Exists(trainPath))
         {
             Console.WriteLine($"[ERROR] Training file not found: {trainPath}");
-            return;
+            return [];
         }
 
         var sw = Stopwatch.StartNew();
@@ -72,8 +72,7 @@ public static class TrainEcgCommand
         // K-Fold Cross Validation mode
         if (cvFolds >= 2)
         {
-            ExecuteKFoldsOof(allSamples, modelPath, cvFolds, epochs, lr, hiddenDim, subregions, seed, useOvr, weightPower, weightPowers, runDiagnostics);
-            return;
+            return ExecuteKFoldsOof(allSamples, modelPath, cvFolds, epochs, lr, hiddenDim, subregions, seed, useOvr, weightPower, weightPowers, runDiagnostics);
         }
 
         // Stratified split
@@ -263,9 +262,10 @@ public static class TrainEcgCommand
         }
 
         Console.WriteLine("==========================================================================\n");
+        return [modelPath];
     }
 
-    private static void ExecuteKFoldsOof(
+    public static List<string> ExecuteKFoldsOof(
         IReadOnlyList<KaggleEcgSample> allSamples,
         string modelPath,
         int cvFolds,
@@ -280,8 +280,17 @@ public static class TrainEcgCommand
         bool runDiagnostics = true)
     {
         Console.WriteLine($"\n[K-FOLD CV] Running {cvFolds}-Fold Stratified Cross-Validation (Seed: {seed})...");
-        var folds = KaggleEcgDataset.StratifiedKFolds(allSamples, cvFolds, seed);
+        
+        // 1. Pre-extract neuromorphic + clinical features once for the entire dataset using the shared front-end
+        var baseClassifier = new KairosClassifier(subregionCount: subregions, seed: seed);
+        var allSignals = allSamples.Select(s => s.ToSignalSample()).ToList();
+        Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features (shared across all {cvFolds} folds: {allSamples.Count:N0} samples)...");
+        var allEncoded = baseClassifier.EncodeSamples(allSignals, "k-fold");
+        Console.WriteLine($"[1/2] Feature extraction complete. Feature vector dimension: {allEncoded[0].Features.Length}\n");
+
+        var foldIndices = KaggleEcgDataset.StratifiedKFoldIndices(allSamples, cvFolds, seed);
         var oofProbs = new double[allSamples.Count][];
+        var oofLogits = new double[allSamples.Count][];
         var oofActuals = new int[allSamples.Count];
         var foldModels = new List<string>();
 
@@ -291,14 +300,14 @@ public static class TrainEcgCommand
         for (int fold = 0; fold < cvFolds; fold++)
         {
             Console.WriteLine($"\n--------------------------------------------------------------------------");
-            Console.WriteLine($"  FOLD {fold + 1}/{cvFolds} (Val Size: {folds[fold].Count:N0} samples)");
+            Console.WriteLine($"  FOLD {fold + 1}/{cvFolds} (Val Size: {foldIndices[fold].Count:N0} samples)");
             Console.WriteLine($"--------------------------------------------------------------------------");
 
-            var valSamplesFold = folds[fold];
-            var trainSamplesFold = folds.Where((_, idx) => idx != fold).SelectMany(f => f).ToList();
+            var valIdxs = foldIndices[fold];
+            var trainIdxs = foldIndices.Where((_, idx) => idx != fold).SelectMany(f => f).ToList();
 
-            var trainSignals = trainSamplesFold.Select(s => s.ToSignalSample()).ToList();
-            var valSignals = valSamplesFold.Select(s => s.ToSignalSample()).ToList();
+            var encodedTrain = trainIdxs.Select(i => allEncoded[i]).ToList();
+            var encodedVal = valIdxs.Select(i => allEncoded[i]).ToList();
 
             var foldClassifier = new KairosClassifier(subregionCount: subregions, seed: seed + fold);
 
@@ -316,8 +325,8 @@ public static class TrainEcgCommand
             if (useOvr)
             {
                 foldRes = foldClassifier.FitOvrWithValidation(
-                    trainSignals,
-                    valSignals,
+                    encodedTrain,
+                    encodedVal,
                     epochs: epochs,
                     lr: lr,
                     hiddenDim: hiddenDim,
@@ -332,10 +341,14 @@ public static class TrainEcgCommand
             }
             else
             {
+                var trainSamplesFold = trainIdxs.Select(i => allSamples[i]).ToList();
                 var weights = KaggleEcgDataset.ComputeBalancedClassWeights(trainSamplesFold, 4, weightPower);
+                var trainSignalsFold = trainIdxs.Select(i => allSignals[i]).ToList();
+                var valSignalsFold = valIdxs.Select(i => allSignals[i]).ToList();
+
                 foldRes = foldClassifier.FitWithValidation(
-                    trainSignals,
-                    valSignals,
+                    trainSignalsFold,
+                    valSignalsFold,
                     epochs: epochs,
                     lr: lr,
                     hiddenDim: hiddenDim,
@@ -353,10 +366,12 @@ public static class TrainEcgCommand
             foldModels.Add(foldModelPath);
             Console.WriteLine($"  Fold {fold + 1} Best Macro F1: {foldRes.MacroF1:F4} (Saved: {foldModelPath})");
 
-            for (int i = 0; i < valSignals.Count; i++)
+            // Predict on validation set directly from features (zero redundant front-end MACs)
+            for (int i = 0; i < encodedVal.Count; i++)
             {
-                oofProbs[oofSampleIdx] = foldClassifier.PredictProbabilities(valSignals[i].Values, valSignals[i].EffectiveLength);
-                oofActuals[oofSampleIdx] = valSignals[i].Label;
+                oofLogits[oofSampleIdx] = foldClassifier.PredictCalibratedLogitsFromFeatures(encodedVal[i].Features);
+                oofProbs[oofSampleIdx] = foldClassifier.PredictProbabilitiesFromFeatures(encodedVal[i].Features);
+                oofActuals[oofSampleIdx] = encodedVal[i].Label;
                 oofSampleIdx++;
             }
         }
@@ -393,21 +408,37 @@ public static class TrainEcgCommand
         }
 
         var finalOofResult = EvaluateProbsWithThresholds(oofProbs, oofActuals, bestThresh);
-        Console.WriteLine($"\nOptimal Out-Of-Fold Thresholds:");
+        Console.WriteLine($"\nOptimal Out-Of-Fold Thresholds (legacy probability rule):");
         Console.WriteLine($"  Thresholds: [{string.Join(", ", bestThresh.Select((t, c) => $"Class {c}={t:F2}"))}]");
         Console.WriteLine($"  Raw OOF Macro F1 (at 1.0): {oofRes.MacroF1:F4}");
         Console.WriteLine($"  Calibrated Global OOF Macro F1: {finalOofResult.MacroF1:F4} (Accuracy: {finalOofResult.Accuracy * 100:F2}%)");
         Console.WriteLine($"\nOOF Full Classification Report:");
         Console.WriteLine(finalOofResult.FormatReport());
 
+        Console.WriteLine("\nOptimizing additive per-class logit biases on OOF logits (Macro F1)...");
+        double[] bestBias = KairosClassifier.OptimizeDecisionBias(oofLogits, oofActuals, 4, out double oofBiasF1);
+        Console.WriteLine($"  Additive Biases: [{string.Join(", ", bestBias.Select((b, c) => $"Class {c}={b:F3}"))}]");
+        Console.WriteLine($"  OOF Macro F1 (additive logit rule): {oofBiasF1:F4}");
+        Console.WriteLine($"  Delta vs legacy probability rule: {oofBiasF1 - finalOofResult.MacroF1:+0.0000;-0.0000}");
+
+        int[] oofBiasPreds = new int[oofActuals.Length];
+        for (int i = 0; i < oofActuals.Length; i++)
+        {
+            oofBiasPreds[i] = KairosClassifier.ArgMaxBias(oofLogits[i], bestBias);
+        }
+        var biasOofResult = MacroF1Metrics.Compute(oofActuals, oofBiasPreds, 4);
+        Console.WriteLine($"\nOOF Classification Report (additive logit rule):");
+        Console.WriteLine(biasOofResult.FormatReport());
+
         foreach (var fPath in foldModels)
         {
             var mod = KairosClassifier.Load(fPath);
             mod.Thresholds = bestThresh;
+            mod.DecisionBias = bestBias;
             mod.Save(fPath);
         }
 
-        Console.WriteLine($"All {cvFolds} fold models updated with optimal OOF thresholds.");
+        Console.WriteLine($"All {cvFolds} fold models updated with optimal OOF thresholds + additive logit biases.");
         Console.WriteLine($"\nTo generate ensemble submission on test.csv:");
         Console.WriteLine($"  kairos predict-kaggle --model {string.Join(",", foldModels)} --test test.csv --out submission.csv");
 
@@ -419,6 +450,7 @@ public static class TrainEcgCommand
         }
 
         Console.WriteLine("==========================================================================\n");
+        return foldModels;
     }
 
     private static MacroF1Result EvaluateProbsWithThresholds(double[][] probs, int[] actuals, double[] thresh)

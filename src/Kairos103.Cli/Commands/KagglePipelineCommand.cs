@@ -22,7 +22,8 @@ public static class KagglePipelineCommand
         double lr = 0.02,
         string weightPowers = "0.35,0.70,0.50,0.85",
         int[]? seeds = null,
-        string thresholds = "1.00,0.85,1.25,0.85")
+        string? thresholds = null,
+        int cvFolds = 5)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("     KAIROS103 - PIPELINE KAGGLE ECG (LOCAL, 100% .NET)                   ");
@@ -41,14 +42,14 @@ public static class KagglePipelineCommand
 
         int[] seedList = (seeds != null && seeds.Length > 0) ? seeds : [42, 777, 20261010];
         double[] weightPowersArr = ParseVector(weightPowers);
-        double[] thresholdsArr = ParseVector(thresholds);
+        double[]? thresholdsArr = !string.IsNullOrWhiteSpace(thresholds) ? ParseVector(thresholds) : null;
 
         if (weightPowersArr.Length != 4)
         {
             Console.WriteLine("[ERROR] --weight-powers debe contener 4 valores (uno por clase).");
             return;
         }
-        if (thresholdsArr.Length != 4)
+        if (thresholdsArr != null && thresholdsArr.Length != 4)
         {
             Console.WriteLine("[ERROR] --thresholds debe contener 4 valores (uno por clase).");
             return;
@@ -62,55 +63,84 @@ public static class KagglePipelineCommand
         Console.WriteLine($"  Test:         {testPath}");
         Console.WriteLine($"  Submission:   {outputPath}");
         Console.WriteLine($"  Modelos:      {modelDir}");
-        Console.WriteLine($"  Semillas:     {string.Join(", ", seedList)}");
+        Console.WriteLine(cvFolds >= 2 
+            ? $"  Modo:         {cvFolds}-Fold Cross-Validation (OOF Calibration)" 
+            : $"  Modo:         Full-Train Ensamble ({seedList.Length} semillas)");
         Console.WriteLine($"  Subregiones:  {subregions} ({subregions * 4} neuronas LIF)");
         Console.WriteLine($"  Hidden:       {hidden} | Epochs: {epochs} | Lr: {lr.ToString(CultureInfo.InvariantCulture)}");
         Console.WriteLine($"  WeightPowers: {weightPowers}");
-        Console.WriteLine($"  Thresholds:   {thresholds}");
+        Console.WriteLine(thresholdsArr != null 
+            ? $"  Thresholds:   {thresholds} (manual override)" 
+            : $"  Thresholds:   Auto OOF Calibrated (Matematico)");
         Console.WriteLine("==========================================================================");
 
-        var modelPaths = new List<string>(seedList.Length);
         string baseName = Path.GetFileNameWithoutExtension(trainPath);
-
-        // Parse the training CSV exactly once and share the immutable sample list across all ensemble members.
-        Console.WriteLine($"\nLoading training dataset once for all {seedList.Length} ensemble members: {trainPath}...");
+        Console.WriteLine($"\nLoading training dataset: {trainPath}...");
         var allSamples = KaggleEcgDataset.LoadTrain(trainPath);
         Console.WriteLine($"Loaded {allSamples.Count:N0} samples.\n");
 
-        for (int i = 0; i < seedList.Length; i++)
+        List<string> modelPaths;
+
+        if (cvFolds >= 2)
         {
-            int seed = seedList[i];
-            string modelPath = Path.Combine(modelDir, $"model_local_{baseName}_{seed}.kairos");
-
-            Console.WriteLine("\n==========================================================================");
-            Console.WriteLine($"  Entrenando Modelo {i + 1}/{seedList.Length} (Semilla {seed}, {subregions} subregiones, 100% data)");
-            Console.WriteLine("==========================================================================");
-
-            TrainEcgCommand.Execute(
+            string baseModelPath = Path.Combine(modelDir, $"model_{baseName}.kairos");
+            modelPaths = TrainEcgCommand.Execute(
                 trainPath: trainPath,
-                modelPath: modelPath,
+                modelPath: baseModelPath,
                 epochs: epochs,
                 lr: lr,
                 hiddenDim: hidden,
                 subregions: subregions,
                 valSplit: 0.0,
-                seed: seed,
+                seed: seedList[0],
                 useClassWeights: true,
                 runBaselines: false,
                 weightPower: 0.5,
-                calibrateThresholds: false,
+                calibrateThresholds: true,
                 useOvr: true,
                 weightPowers: weightPowersArr,
-                cvFolds: 0,
+                cvFolds: cvFolds,
                 preloadedSamples: allSamples,
                 runDiagnostics: false);
-
-            if (!File.Exists(modelPath))
+        }
+        else
+        {
+            modelPaths = new List<string>(seedList.Length);
+            for (int i = 0; i < seedList.Length; i++)
             {
-                Console.WriteLine($"[ERROR] El modelo esperado no se genero: {modelPath}");
-                return;
+                int seed = seedList[i];
+                string modelPath = Path.Combine(modelDir, $"model_local_{baseName}_{seed}.kairos");
+
+                Console.WriteLine("\n==========================================================================");
+                Console.WriteLine($"  Entrenando Modelo {i + 1}/{seedList.Length} (Semilla {seed}, {subregions} subregiones, 100% data)");
+                Console.WriteLine("==========================================================================");
+
+                TrainEcgCommand.Execute(
+                    trainPath: trainPath,
+                    modelPath: modelPath,
+                    epochs: epochs,
+                    lr: lr,
+                    hiddenDim: hidden,
+                    subregions: subregions,
+                    valSplit: 0.0,
+                    seed: seed,
+                    useClassWeights: true,
+                    runBaselines: false,
+                    weightPower: 0.5,
+                    calibrateThresholds: false,
+                    useOvr: true,
+                    weightPowers: weightPowersArr,
+                    cvFolds: 0,
+                    preloadedSamples: allSamples,
+                    runDiagnostics: false);
+
+                if (!File.Exists(modelPath))
+                {
+                    Console.WriteLine($"[ERROR] El modelo esperado no se genero: {modelPath}");
+                    return;
+                }
+                modelPaths.Add(modelPath);
             }
-            modelPaths.Add(modelPath);
         }
 
         Console.WriteLine("\n==========================================================================");
@@ -156,8 +186,9 @@ public static class KagglePipelineCommand
         int epochs = 28;
         double lr = 0.02;
         string weightPowers = "0.35,0.70,0.50,0.85";
-        string thresholds = "1.00,0.85,1.25,0.85";
+        string? thresholds = null;
         int[]? seeds = null;
+        int cvFolds = 5;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -199,6 +230,11 @@ public static class KagglePipelineCommand
                 case "--thresholds":
                     if (i + 1 < args.Length) thresholds = args[++i];
                     break;
+                case "--cv-folds":
+                case "--kfold":
+                case "--folds":
+                    if (i + 1 < args.Length) cvFolds = int.Parse(args[++i], CultureInfo.InvariantCulture);
+                    break;
                 case "--seeds":
                     if (i + 1 < args.Length) seeds = ParseSeeds(args[++i]);
                     break;
@@ -208,6 +244,6 @@ public static class KagglePipelineCommand
             }
         }
 
-        Execute(trainPath, testPath, outputPath, samplePath, modelDir, subregions, hidden, epochs, lr, weightPowers, seeds, thresholds);
+        Execute(trainPath, testPath, outputPath, samplePath, modelDir, subregions, hidden, epochs, lr, weightPowers, seeds, thresholds, cvFolds);
     }
 }

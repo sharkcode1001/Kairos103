@@ -181,7 +181,6 @@ params = {
     'feature_fraction': 0.85,
     'bagging_fraction': 0.85,
     'bagging_freq': 1,
-    'class_weight': class_weights,
     'random_state': 42,
     'verbose': -1,
     'n_jobs': -1
@@ -194,8 +193,12 @@ train_idx, val_idx = next(skf.split(X_train, y_train))
 X_tr, y_tr = X_train.iloc[train_idx], y_train[train_idx]
 X_va, y_va = X_train.iloc[val_idx], y_train[val_idx]
 
-train_data = lgb.Dataset(X_tr, label=y_tr)
-val_data = lgb.Dataset(X_va, label=y_va, reference=train_data)
+# Asignar peso a cada muestra según su clase para proteger clases minoritarias
+sample_weights_tr = np.array([class_weights[y] for y in y_tr], dtype=np.float32)
+sample_weights_va = np.array([class_weights[y] for y in y_va], dtype=np.float32)
+
+train_data = lgb.Dataset(X_tr, label=y_tr, weight=sample_weights_tr)
+val_data = lgb.Dataset(X_va, label=y_va, weight=sample_weights_va, reference=train_data)
 
 model = lgb.train(
     params,

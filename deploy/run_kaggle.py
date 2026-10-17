@@ -181,8 +181,8 @@ def main():
         "--test", test_path,
         "--output", output_csv,
         "--model-dir", model_dir,
-        "--seeds", "42,777,20261010",
-        "--subregions", "40",
+        "--seeds", "42",
+        "--subregions", "16",
         "--epochs", "28"
     ]
     if sample_path:

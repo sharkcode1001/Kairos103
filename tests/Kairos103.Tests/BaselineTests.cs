@@ -87,7 +87,7 @@ public class BaselineTests
     public void SimpleLstm_ConvergesAtNominalSpeed_AndCollapsesUnderTimeWarp()
     {
         string dir = LocateSyntheticDatasetsDirectory();
-        if (!Directory.Exists(dir)) return;
+        Assert.True(Directory.Exists(dir), $"Missing synthetic datasets directory: {dir}");
         var train = DatasetLoader.LoadCsv(Path.Combine(dir, "warpstress_train.csv")).Take(400).ToList();
         var test10 = DatasetLoader.LoadCsv(Path.Combine(dir, "warpstress_test_1.0x.csv")).Take(200).ToList();
         var test05 = DatasetLoader.LoadCsv(Path.Combine(dir, "warpstress_test_0.5x.csv")).Take(200).ToList();

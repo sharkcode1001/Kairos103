@@ -174,7 +174,9 @@ public sealed class KairosClassifier
         _trainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, classWeights: classWeights);
         IsTrained = true;
 
-        Thresholds = defaultThresholds ?? [0.50, 0.18, 0.90, 1.00];
+        Thresholds = (defaultThresholds != null && defaultThresholds.Length == ClassCount)
+            ? defaultThresholds
+            : DefaultThresholds(ClassCount, [0.50, 0.18, 0.90, 1.00]);
     }
 
     /// <summary>
@@ -637,7 +639,20 @@ public sealed class KairosClassifier
         _ovrTrainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, weightPower: weightPower, weightPowers: weightPowers);
         IsTrained = true;
 
-        Thresholds = defaultThresholds ?? [1.00, 1.10, 1.00, 1.00];
+        Thresholds = (defaultThresholds != null && defaultThresholds.Length == ClassCount)
+            ? defaultThresholds
+            : DefaultThresholds(ClassCount, [1.00, 1.10, 1.00, 1.00]);
+    }
+
+    /// <summary>
+    /// Returns the class-tuned default thresholds when the model's class count matches the tuned preset;
+    /// otherwise returns neutral threshold 1.0 for every class so the decision rule remains dimensionally valid.
+    /// </summary>
+    private static double[] DefaultThresholds(int classCount, double[] tunedPreset)
+    {
+        return classCount == tunedPreset.Length
+            ? (double[])tunedPreset.Clone()
+            : Enumerable.Repeat(1.0, classCount).ToArray();
     }
 
     private IReadOnlyList<(double[] Features, int Label)> EncodeSamples(

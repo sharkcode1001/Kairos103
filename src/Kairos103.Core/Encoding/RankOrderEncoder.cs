@@ -38,6 +38,7 @@ public static class RankOrderEncoder
 
     /// <summary>
     /// Returns the permutation array of channel indices ordered by spike arrival timestamp.
+    /// Uses a stable insertion sort so tied arrival times preserve ascending channel index order.
     /// </summary>
     public static int[] GetPermutation(IReadOnlyList<double> spikeTimes)
     {
@@ -45,7 +46,19 @@ public static class RankOrderEncoder
         int[] indices = new int[n];
         for (int i = 0; i < n; i++) indices[i] = i;
 
-        Array.Sort(indices, (a, b) => spikeTimes[a].CompareTo(spikeTimes[b]));
+        for (int i = 1; i < n; i++)
+        {
+            int key = indices[i];
+            double keyTime = spikeTimes[key];
+            int j = i - 1;
+            while (j >= 0 && spikeTimes[indices[j]] > keyTime)
+            {
+                indices[j + 1] = indices[j];
+                j--;
+            }
+            indices[j + 1] = key;
+        }
+
         return indices;
     }
 }

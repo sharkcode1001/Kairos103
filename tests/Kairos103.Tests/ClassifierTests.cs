@@ -131,17 +131,33 @@ public class ClassifierTests
     [Fact]
     public void PairwiseTrainer_EvaluateOnRealDatasets()
     {
-        string synthTrain = "datasets/synthetic/warpstress_train.csv";
-        string synthTest = "datasets/synthetic/warpstress_test_1.0x.csv";
-        if (File.Exists(synthTrain) && File.Exists(synthTest))
+        string synthDir = LocateSyntheticDatasetsDirectory();
+        string synthTrain = Path.Combine(synthDir, "warpstress_train.csv");
+        string synthTest = Path.Combine(synthDir, "warpstress_test_1.0x.csv");
+
+        Assert.True(File.Exists(synthTrain), $"Missing dataset: {synthTrain}");
+        Assert.True(File.Exists(synthTest), $"Missing dataset: {synthTest}");
+
+        var model = new KairosClassifier(subregionCount: 16);
+        model.Fit(synthTrain, epochs: 20);
+        var samples = SignalDataset.LoadCsv(synthTest);
+        int correct = samples.Count(s => model.Predict(s.Values, s.EffectiveLength) == s.Label);
+        double acc = (double)correct / samples.Count;
+        Assert.True(acc >= 0.95, $"Expected accuracy >= 0.95 on synthetic 1.0x, got {acc}");
+    }
+
+    private static string LocateSyntheticDatasetsDirectory()
+    {
+        string dir = AppContext.BaseDirectory;
+        for (int i = 0; i < 6; i++)
         {
-            var model = new KairosClassifier(subregionCount: 16);
-            model.Fit(synthTrain, epochs: 20);
-            var samples = SignalDataset.LoadCsv(synthTest);
-            int correct = samples.Count(s => model.Predict(s.Values, s.EffectiveLength) == s.Label);
-            double acc = (double)correct / samples.Count;
-            Assert.True(acc >= 0.95, $"Expected accuracy >= 0.95 on synthetic 1.0x, got {acc}");
+            string candidate = Path.Combine(dir, "datasets", "synthetic");
+            if (Directory.Exists(candidate)) return candidate;
+            string? parent = Directory.GetParent(dir)?.FullName;
+            if (parent == null) break;
+            dir = parent;
         }
+        return Path.Combine(AppContext.BaseDirectory, "../../../../../datasets/synthetic");
     }
 
     [Fact]

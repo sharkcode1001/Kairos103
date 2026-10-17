@@ -340,17 +340,27 @@ public sealed class PairwiseTrainer
             Array.Copy(Weights[c], clone.Weights[c], FeatureDim);
         }
 
+        clone._adamStep = _adamStep;
+
         if (HiddenDim > 0)
         {
             Array.Copy(B1, clone.B1, B1.Length);
             Array.Copy(B2, clone.B2, B2.Length);
+            Array.Copy(_mB1, clone._mB1, _mB1.Length);
+            Array.Copy(_vB1, clone._vB1, _vB1.Length);
+            Array.Copy(_mB2, clone._mB2, _mB2.Length);
+            Array.Copy(_vB2, clone._vB2, _vB2.Length);
             for (int j = 0; j < HiddenDim; j++)
             {
                 Array.Copy(W1[j], clone.W1[j], FeatureDim);
+                Array.Copy(_mW1[j], clone._mW1[j], FeatureDim);
+                Array.Copy(_vW1[j], clone._vW1[j], FeatureDim);
             }
             for (int c = 0; c < ClassCount; c++)
             {
                 Array.Copy(W2[c], clone.W2[c], HiddenDim);
+                Array.Copy(_mW2[c], clone._mW2[c], HiddenDim);
+                Array.Copy(_vW2[c], clone._vW2[c], HiddenDim);
             }
         }
 

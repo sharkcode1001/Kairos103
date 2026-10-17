@@ -3,7 +3,7 @@
     Ejecuta el pipeline completo de Kaggle (NPPE2-T2-26 ECG) de forma local, 100% .NET (sin Python).
 
 .DESCRIPTION
-    Replica lo que hacia el notebook de Kaggle, pero usando los CSV que tengas en tu PC:
+    Ejecuta el pipeline oficial de submission con la red Kairos, usando los CSV que tengas en tu PC:
       1. Compila Kairos103.Cli en Release.
       2. Entrena N modelos OvR (multi-semilla) con el 100% del train (--full-train).
       3. Genera submission.csv por inferencia de ensamble con thresholds calibrados.

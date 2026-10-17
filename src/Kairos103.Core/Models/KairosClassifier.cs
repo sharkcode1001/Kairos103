@@ -268,7 +268,12 @@ public sealed class KairosClassifier
                 Console.WriteLine($"  Platt Scaling: [{string.Join(", ", CalibScale.Select((a, c) => $"Class {c}: a={a:F3}, b={CalibBias[c]:F3}"))}]");
             }
             Console.WriteLine($"  Optimal Thresholds: [{string.Join(", ", Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
-            Console.WriteLine($"  Calibrated Validation Macro F1: {calResult.MacroF1:F4} (Accuracy: {calResult.Accuracy * 100:F2}%)\n");
+            Console.WriteLine($"  Calibrated Validation Macro F1: {calResult.MacroF1:F4} (Accuracy: {calResult.Accuracy * 100:F2}%)");
+            if (TryRejectCalibration(calResult, bestResult))
+            {
+                return bestResult!;
+            }
+            Console.WriteLine();
             Console.Out.Flush();
             return calResult;
         }
@@ -436,6 +441,26 @@ public sealed class KairosClassifier
         return EvaluateWithThresholds(probs, actuals, Thresholds);
     }
 
+    /// <summary>
+    /// Rejects a calibration that lowered validation Macro F1 versus the raw argmax checkpoint,
+    /// restoring the raw decision rule (identity thresholds, no Platt scaling).
+    /// Returns true when calibration was rejected.
+    /// </summary>
+    private bool TryRejectCalibration(MacroF1Result calibrated, MacroF1Result? rawBest)
+    {
+        if (rawBest == null || calibrated.MacroF1 >= rawBest.MacroF1)
+        {
+            return false;
+        }
+
+        CalibScale = [];
+        CalibBias = [];
+        Thresholds = Enumerable.Repeat(1.0, ClassCount).ToArray();
+        Console.WriteLine($"  [Calibration rejected] Raw argmax Macro F1 {rawBest.MacroF1:F4} >= calibrated {calibrated.MacroF1:F4}; keeping raw decision rule.\n");
+        Console.Out.Flush();
+        return true;
+    }
+
     private MacroF1Result EvaluateWithThresholds(double[][] probs, int[] actuals, double[] thresh)
     {
         int[] preds = new int[actuals.Length];
@@ -591,7 +616,12 @@ public sealed class KairosClassifier
                 Console.WriteLine($"  Platt Scaling: [{string.Join(", ", CalibScale.Select((a, c) => $"Class {c}: a={a:F3}, b={CalibBias[c]:F3}"))}]");
             }
             Console.WriteLine($"  Optimal Thresholds: [{string.Join(", ", Thresholds.Select((t, c) => $"Class {c}={t:F2}"))}]");
-            Console.WriteLine($"  Calibrated Validation Macro F1: {calResult.MacroF1:F4} (Accuracy: {calResult.Accuracy * 100:F2}%)\n");
+            Console.WriteLine($"  Calibrated Validation Macro F1: {calResult.MacroF1:F4} (Accuracy: {calResult.Accuracy * 100:F2}%)");
+            if (TryRejectCalibration(calResult, bestResult))
+            {
+                return bestResult!;
+            }
+            Console.WriteLine();
             Console.Out.Flush();
             return calResult;
         }

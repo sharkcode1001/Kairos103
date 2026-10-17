@@ -1,10 +1,16 @@
 """
 ==============================================================================
-KAGGLE ECG ARRHYTHMIA CLASSIFIER (NPPE2 COMPETITION)
-1 Modelo LightGBM + 22 Features Electrofisiológicos Auxiliares + Macro F1 Tuning
+REFERENCE BASELINE (NON-KAIROS): LightGBM ECG Arrhythmia Classifier
 ==============================================================================
-Este script está listo para ejecutarse directamente en un Kaggle Notebook nuevo
-o en local. No requiere instalar paquetes externos ni GPUs.
+External gradient-boosting reference baseline for the NPPE2 ECG competition.
+
+This is a COMPARISON BASELINE ONLY and is NOT the official Kairos103 submission.
+The official competition submission is produced exclusively by the Kairos neural
+network through:
+    - deploy/run_kaggle.py  (Kaggle runner -> Kairos103.Cli kaggle-pipeline)
+    - deploy/run_local.ps1  (local runner  -> Kairos103.Cli train-ecg + predict-kaggle)
+
+Pipeline: 1 LightGBM model + 22 auxiliary electrophysiological features + Macro F1 tuning.
 """
 
 import os
@@ -20,7 +26,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 print("=" * 74)
-print("  KAGGLE ECG ARRHYTHMIA PIPELINE (PYTHON + 22 AUXILIARY FEATURES)")
+print("  REFERENCE BASELINE: LightGBM ECG CLASSIFIER (NON-KAIROS, COMPARISON ONLY)")
 print("=" * 74)
 
 # ------------------------------------------------------------------------------
@@ -254,27 +260,27 @@ print("\nReporte de Clasificación en Validación:")
 print(classification_report(y_va, val_preds_opt, digits=4))
 
 # ------------------------------------------------------------------------------
-# 7. GENERACIÓN DEL ARCHIVO DE SUBMISIÓN (SUBMISSION.CSV)
+# 7. GENERACIÓN DE PREDICCIONES DE REFERENCIA (BASELINE, NO SUBMISSION)
 # ------------------------------------------------------------------------------
-print("[*] Generando predicciones en test.csv...")
+print("[*] Generando predicciones de referencia en test.csv...")
 test_probs = model.predict(X_test, num_iteration=model.best_iteration)
 final_preds = np.argmax(test_probs * best_weights, axis=1)
 
-output_path = '/kaggle/working/submission.csv' if os.path.exists('/kaggle/working') else 'submission.csv'
+output_path = '/kaggle/working/lightgbm_baseline_predictions.csv' if os.path.exists('/kaggle/working') else 'lightgbm_baseline_predictions.csv'
 
-submission = pd.DataFrame({
+reference_predictions = pd.DataFrame({
     'id': test_df['id'],
     'label': final_preds
 })
-submission.to_csv(output_path, index=False)
+reference_predictions.to_csv(output_path, index=False)
 
-print(f"\n[OK] ¡Archivo generado con éxito en: {output_path}!")
-print(f"     Total de muestras: {len(submission):N0}")
+print(f"\n[OK] Predicciones de referencia generadas en: {output_path}")
+print(f"     Total de muestras: {len(reference_predictions):N0}")
 print("\nDistribución de clases predichas en Test:")
-print(submission['label'].value_counts().sort_index())
+print(reference_predictions['label'].value_counts().sort_index())
 
 if os.path.exists(sample_path):
     sample_sub = pd.read_csv(sample_path)
-    assert len(submission) == len(sample_sub), "Error: Conteo de filas no coincide con sample_submission."
-    assert (submission['id'].values == sample_sub['id'].values).all(), "Error: Los IDs no coinciden exactamente."
-    print("\n[OK] Verificación contra sample_submission.csv: 100% ALINEADO")
+    assert len(reference_predictions) == len(sample_sub), "Error: Conteo de filas no coincide con sample_submission."
+    assert (reference_predictions['id'].values == sample_sub['id'].values).all(), "Error: Los IDs no coinciden exactamente."
+    print("\n[OK] Verificación de alineación de IDs contra sample_submission.csv")

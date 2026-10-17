@@ -183,7 +183,8 @@ def main():
         "--model-dir", model_dir,
         "--seeds", "42",
         "--subregions", "16",
-        "--epochs", "28"
+        "--epochs", "28",
+        "--cv-folds", "0"
     ]
     if sample_path:
         cmd.extend(["--sample-submission", sample_path])

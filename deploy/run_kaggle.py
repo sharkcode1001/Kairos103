@@ -161,15 +161,15 @@ def main():
         else:
             raise FileNotFoundError(f"No se encontro '{cli_proj}'. Ejecuta este script desde la raiz del repositorio.")
 
-    # 5. Compilar en Release
+    # 5. Compilar en Release (limpio sin ruido de consola)
     banner("[2/4] Compilando Kairos103.Cli en modo Release...")
-    build_cmd = [dotnet_bin, "build", cli_proj, "-c", "Release"]
+    build_cmd = [dotnet_bin, "build", cli_proj, "-c", "Release", "-v", "quiet", "-clp:NoSummary"]
     ret = subprocess.call(build_cmd)
     if ret != 0:
         raise RuntimeError("Error durante la compilacion de Kairos103.Cli")
 
     # 6. Ejecutar pipeline completo
-    banner("[3/4] Ejecutando Pipeline Kaggle (Ensamble 3 semillas + OvR + Full Train)...")
+    banner("[3/4] Ejecutando Pipeline Kaggle (1 Modelo + 16 Subregiones + Calibracion Macro F1)...")
     cmd = [
         dotnet_bin, "run",
         "--project", cli_proj,
@@ -184,7 +184,8 @@ def main():
         "--seeds", "42",
         "--subregions", "16",
         "--epochs", "28",
-        "--cv-folds", "0"
+        "--cv-folds", "0",
+        "--val-split", "0.15"
     ]
     if sample_path:
         cmd.extend(["--sample-submission", sample_path])

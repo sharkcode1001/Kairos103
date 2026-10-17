@@ -23,7 +23,8 @@ public static class KagglePipelineCommand
         string weightPowers = "0.35,0.70,0.50,0.85",
         int[]? seeds = null,
         string? thresholds = null,
-        int cvFolds = 5)
+        int cvFolds = 5,
+        double valSplit = 0.15)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("     KAIROS103 - PIPELINE KAGGLE ECG (LOCAL, 100% .NET)                   ");
@@ -115,6 +116,9 @@ public static class KagglePipelineCommand
                 Console.WriteLine($"  Entrenando Modelo {i + 1}/{seedList.Length} (Semilla {seed}, {subregions} subregiones, 100% data)");
                 Console.WriteLine("==========================================================================");
 
+                double actualValSplit = valSplit > 0.0 ? valSplit : 0.15;
+                Console.WriteLine($"\n  Calibración de Umbrales: Activada con {actualValSplit:P0} de datos de validación.");
+
                 TrainEcgCommand.Execute(
                     trainPath: trainPath,
                     modelPath: modelPath,
@@ -122,12 +126,12 @@ public static class KagglePipelineCommand
                     lr: lr,
                     hiddenDim: hidden,
                     subregions: subregions,
-                    valSplit: 0.0,
+                    valSplit: actualValSplit,
                     seed: seed,
                     useClassWeights: true,
                     runBaselines: false,
                     weightPower: 0.5,
-                    calibrateThresholds: false,
+                    calibrateThresholds: true,
                     useOvr: true,
                     weightPowers: weightPowersArr,
                     cvFolds: 0,
@@ -189,6 +193,7 @@ public static class KagglePipelineCommand
         string? thresholds = null;
         int[]? seeds = null;
         int cvFolds = 5;
+        double valSplit = 0.15;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -235,6 +240,9 @@ public static class KagglePipelineCommand
                 case "--folds":
                     if (i + 1 < args.Length) cvFolds = int.Parse(args[++i], CultureInfo.InvariantCulture);
                     break;
+                case "--val-split":
+                    if (i + 1 < args.Length) valSplit = double.Parse(args[++i], CultureInfo.InvariantCulture);
+                    break;
                 case "--seeds":
                     if (i + 1 < args.Length) seeds = ParseSeeds(args[++i]);
                     break;
@@ -244,6 +252,6 @@ public static class KagglePipelineCommand
             }
         }
 
-        Execute(trainPath, testPath, outputPath, samplePath, modelDir, subregions, hidden, epochs, lr, weightPowers, seeds, thresholds, cvFolds);
+        Execute(trainPath, testPath, outputPath, samplePath, modelDir, subregions, hidden, epochs, lr, weightPowers, seeds, thresholds, cvFolds, valSplit);
     }
 }

@@ -27,7 +27,8 @@ public static class TrainEcgCommand
         int cvFolds = 0,
         IReadOnlyList<KaggleEcgSample>? preloadedSamples = null,
         bool runDiagnostics = true,
-        bool runFeatureImportance = false)
+        bool runFeatureImportance = false,
+        bool resume = false)
     {
         Console.WriteLine("\n==========================================================================");
         Console.WriteLine("          KAIROS103 - KAGGLE ECG ARRHYTHMIA TRAINING PIPELINE             ");
@@ -53,6 +54,22 @@ public static class TrainEcgCommand
             allSamples = KaggleEcgDataset.LoadTrain(trainPath);
             sw.Stop();
             Console.WriteLine($"Loaded {allSamples.Count:N0} samples in {sw.ElapsedMilliseconds} ms.");
+        }
+
+        if (resume)
+        {
+            if (!File.Exists(modelPath))
+                throw new FileNotFoundException("Cannot resume: checkpoint not found.", modelPath);
+
+            var resumed = KairosClassifier.Load(modelPath);
+            Console.WriteLine($"Resuming OvR checkpoint from {modelPath} for {epochs} epochs (weights and Adam moments restored)...");
+            resumed.ResumeOvrFull(
+                allSamples.Select(s => s.ToSignalSample()).ToList(),
+                epochs, lr, weightPower, weightPowers,
+                (ep, total) => Console.WriteLine($"  Resume epoch [{ep}/{total}] complete."));
+            resumed.Save(modelPath);
+            Console.WriteLine($"Resumed model saved to: {modelPath}");
+            return [modelPath];
         }
 
         // Report class distribution
@@ -319,7 +336,7 @@ public static class TrainEcgCommand
             var encodedTrain = trainIdxs.Select(i => allEncoded[i]).ToList();
             var encodedVal = valIdxs.Select(i => allEncoded[i]).ToList();
 
-            var foldClassifier = new KairosClassifier(subregionCount: subregions, seed: seed + fold);
+            var foldClassifier = new KairosClassifier(subregionCount: subregions, seed: seed, readoutSeed: seed + fold);
 
             string dir = Path.GetDirectoryName(modelPath) ?? "";
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))

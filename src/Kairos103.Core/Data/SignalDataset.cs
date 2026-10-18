@@ -54,9 +54,12 @@ public static class SignalDataset
         // Detect if parts[1] is an integer length (Kairos format: label, length, v0, v1...)
         // or a continuous float value (standard format: label, v0, v1, v2...)
         bool isKairosFormat = false;
-        if (parts.Length > 2 && int.TryParse(parts[1].Trim(), out int candidateLength))
+        if (parts.Length > 2 && int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int candidateLength))
         {
-            if (candidateLength > 0 && candidateLength <= parts.Length - 2)
+            // The Kairos layout has exactly `length` values after the length field.
+            // Requiring an exact match avoids treating a normal CSV's first sample
+            // as a length when the row contains trailing values.
+            if (candidateLength > 0 && candidateLength == parts.Length - 2)
             {
                 isKairosFormat = true;
             }

@@ -66,43 +66,6 @@ public static class OnlineBenchmarkCommand
             }
         }
 
-        // Baseline empirical references from rigorous full-sweep benchmark (BenchmarkSummary.md)
-        var synthBaselineTransformer = new Dictionary<string, double>
-        {
-            ["0.5x"] = 0.4538,
-            ["0.8x"] = 0.6362,
-            ["1.0x"] = 0.9988,
-            ["1.2x"] = 0.4562,
-            ["2.0x"] = 0.4638
-        };
-
-        var synthBaselineLstm = new Dictionary<string, double>
-        {
-            ["0.5x"] = 0.7562,
-            ["0.8x"] = 0.9738,
-            ["1.0x"] = 0.9988,
-            ["1.2x"] = 0.9938,
-            ["2.0x"] = 0.5175
-        };
-
-        var ecgBaselineTransformer = new Dictionary<string, double>
-        {
-            ["0.5x"] = 0.9200,
-            ["0.8x"] = 0.9525,
-            ["1.0x"] = 0.9725,
-            ["1.2x"] = 0.8450,
-            ["2.0x"] = 0.9125
-        };
-
-        var ecgBaselineLstm = new Dictionary<string, double>
-        {
-            ["0.5x"] = 0.6625,
-            ["0.8x"] = 0.6400,
-            ["1.0x"] = 0.6550,
-            ["1.2x"] = 0.6250,
-            ["2.0x"] = 0.6550
-        };
-
         // Compute dynamic degradation against nominal (1.0x)
         double synthNominal = synthResults.TryGetValue("1.0x", out var sn) ? sn : 1.0;
         double synthMin = synthResults.Values.Count > 0 ? synthResults.Values.Min() : synthNominal;
@@ -156,8 +119,8 @@ public static class OnlineBenchmarkCommand
         {
             string key = $"{factor:F1}x";
             string kairosVal = synthResults.TryGetValue(key, out var kVal) ? $"{kVal * 100:F2}%" : "N/A";
-            string transVal = synthBaselineTransformer.TryGetValue(key, out var tVal) ? $"{tVal * 100:F2}%" : "N/A";
-            string lstmVal = synthBaselineLstm.TryGetValue(key, out var lVal) ? $"{lVal * 100:F2}%" : "N/A";
+            string transVal = "N/A (run benchmark separately)";
+            string lstmVal = "N/A (run benchmark separately)";
             sb.AppendLine($"| {key} | **{kairosVal}** | {transVal} | {lstmVal} |");
         }
         sb.AppendLine();
@@ -168,8 +131,8 @@ public static class OnlineBenchmarkCommand
         {
             string key = $"{factor:F1}x";
             string kairosVal = ecgResults.TryGetValue(key, out var kVal) ? $"{kVal * 100:F2}%" : "N/A";
-            string transVal = ecgBaselineTransformer.TryGetValue(key, out var tVal) ? $"{tVal * 100:F2}%" : "N/A";
-            string lstmVal = ecgBaselineLstm.TryGetValue(key, out var lVal) ? $"{lVal * 100:F2}%" : "N/A";
+            string transVal = "N/A (run benchmark separately)";
+            string lstmVal = "N/A (run benchmark separately)";
             sb.AppendLine($"| {key} | **{kairosVal}** | {transVal} | {lstmVal} |");
         }
         sb.AppendLine();

@@ -65,22 +65,24 @@ public sealed class LinearEcgClassifier : IEcgBaseline
 
         // 1. Compute normalization statistics
         int n = samples.Count;
+        var combinedSamples = new double[n][];
+        for (int i = 0; i < n; i++) combinedSamples[i] = samples[i].ToCombinedSignal();
         for (int f = 0; f < FeatureDim; f++)
         {
             double sum = 0.0;
             for (int i = 0; i < n; i++)
             {
-                sum += GetFeature(samples[i], f);
+                sum += GetFeature(combinedSamples[i], f);
             }
             _mean[f] = sum / n;
 
             double varSum = 0.0;
             for (int i = 0; i < n; i++)
             {
-                double diff = GetFeature(samples[i], f) - _mean[f];
+                double diff = GetFeature(combinedSamples[i], f) - _mean[f];
                 varSum += diff * diff;
             }
-            _std[f] = Math.Sqrt(varSum / n) + 1e-6;
+            _std[f] = Math.Max(Math.Sqrt(varSum / n), 1e-3);
         }
 
         // 2. Class weights for balanced gradients
@@ -111,9 +113,10 @@ public sealed class LinearEcgClassifier : IEcgBaseline
             for (int i = 0; i < n; i++)
             {
                 var s = samples[i];
+                var combined = s.ToCombinedSignal();
                 for (int f = 0; f < FeatureDim; f++)
                 {
-                    x[f] = (GetFeature(s, f) - _mean[f]) / _std[f];
+                    x[f] = (GetFeature(combined, f) - _mean[f]) / _std[f];
                 }
 
                 double maxLogit = double.NegativeInfinity;
@@ -173,13 +176,14 @@ public sealed class LinearEcgClassifier : IEcgBaseline
     {
         int best = 0;
         double bestLogit = double.NegativeInfinity;
+        var combined = sample.ToCombinedSignal();
 
         for (int c = 0; c < ClassCount; c++)
         {
             double sum = _b[c];
             for (int f = 0; f < FeatureDim; f++)
             {
-                double x = (GetFeature(sample, f) - _mean[f]) / _std[f];
+                double x = (GetFeature(combined, f) - _mean[f]) / _std[f];
                 sum += _w[c][f] * x;
             }
             if (sum > bestLogit)
@@ -192,10 +196,7 @@ public sealed class LinearEcgClassifier : IEcgBaseline
         return best;
     }
 
-    private static double GetFeature(KaggleEcgSample s, int index)
-    {
-        return s.ToCombinedSignal()[index];
-    }
+    private static double GetFeature(double[] combined, int index) => combined[index];
 }
 
 /// <summary>

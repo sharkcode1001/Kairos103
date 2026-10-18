@@ -486,6 +486,7 @@ switch (command)
         double[]? weightPowers = null;
         int cvFolds = 0;
         bool featureImportance = false;
+        bool resume = false;
 
         bool explicitSubregions = false;
         bool isKagglePreset = false;
@@ -538,6 +539,8 @@ switch (command)
                 calibrateThresholds = false;
             else if (args[i] == "--feature-importance")
                 featureImportance = true;
+            else if (args[i] == "--resume")
+                resume = true;
         }
 
         if (isKagglePreset && !explicitSubregions)
@@ -551,7 +554,7 @@ switch (command)
             break;
         }
 
-        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower, calibrateThresholds, useOvr, weightPowers, cvFolds, runFeatureImportance: featureImportance);
+        TrainEcgCommand.Execute(trainPath, modelPath, epochs, lr, hidden, subregions, valSplit, seed, classWeights, baselines, weightPower, calibrateThresholds, useOvr, weightPowers, cvFolds, runFeatureImportance: featureImportance, resume: resume);
         break;
     }
 

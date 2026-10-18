@@ -18,6 +18,17 @@ public sealed class OvrTrainer
     public double[][] W2 { get; } // [class][hidden]
     public double[] B2 { get; }   // [class]
 
+    // Serializable Adam optimizer state for resumable training.
+    public double[][][] AdamMW1 => _mW1;
+    public double[][][] AdamVW1 => _vW1;
+    public double[][] AdamMB1 => _mB1;
+    public double[][] AdamVB1 => _vB1;
+    public double[][] AdamMW2 => _mW2;
+    public double[][] AdamVW2 => _vW2;
+    public double[] AdamMB2 => _mB2;
+    public double[] AdamVB2 => _vB2;
+    public int[] AdamSteps => _adamStep;
+
     // Adam optimizer moments per class
     private readonly double[][][] _mW1, _vW1;
     private readonly double[][] _mB1, _vB1;

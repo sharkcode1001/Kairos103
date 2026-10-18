@@ -396,6 +396,14 @@ public static class KaggleEcgDataset
                 (list[i], list[j]) = (list[j], list[i]);
             }
 
+            // A class with one item cannot be represented in both partitions.
+            // Keep it in training rather than calling Math.Clamp with min > max.
+            if (list.Count < 2)
+            {
+                trainList.AddRange(list);
+                continue;
+            }
+
             int valCount = (int)Math.Round(list.Count * valFraction);
             valCount = Math.Clamp(valCount, 1, list.Count - 1);
 

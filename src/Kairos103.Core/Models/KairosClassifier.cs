@@ -45,6 +45,15 @@ public sealed class KairosModelMetadata
     public double[][] OvrB1 { get; set; } = [];
     public double[][] OvrW2 { get; set; } = [];
     public double[] OvrB2 { get; set; } = [];
+    public double[][][] OvrAdamMW1 { get; set; } = [];
+    public double[][][] OvrAdamVW1 { get; set; } = [];
+    public double[][] OvrAdamMB1 { get; set; } = [];
+    public double[][] OvrAdamVB1 { get; set; } = [];
+    public double[][] OvrAdamMW2 { get; set; } = [];
+    public double[][] OvrAdamVW2 { get; set; } = [];
+    public double[] OvrAdamMB2 { get; set; } = [];
+    public double[] OvrAdamVB2 { get; set; } = [];
+    public int[] OvrAdamSteps { get; set; } = [];
 }
 
 /// <summary>
@@ -96,10 +105,18 @@ public sealed class KairosClassifier
     private PairwiseTrainer? _trainer;
     private OvrTrainer? _ovrTrainer;
 
-    public KairosClassifier(int subregionCount = 16, int seed = 20261010)
+    /// <summary>
+    /// Seed used exclusively to initialize the readout trainer(s) (weight initialization and per-epoch shuffling).
+    /// Decoupled from <see cref="Seed"/> (the serialized front-end projection seed) so cross-validation folds can
+    /// vary their readout initialization while still sharing the exact front-end used to encode the cached features.
+    /// </summary>
+    private readonly int _readoutSeed;
+
+    public KairosClassifier(int subregionCount = 16, int seed = 20261010, int? readoutSeed = null)
     {
         SubregionCount = subregionCount;
         Seed = seed;
+        _readoutSeed = readoutSeed ?? seed;
         _network = new KairosNetwork(subregionCount, seed);
     }
 
@@ -129,7 +146,7 @@ public sealed class KairosClassifier
         }
 
         int totalInputDim = _network.TotalFeatures + auxCount;
-        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: _readoutSeed);
 
         var encodedTrain = EncodeSamples(samples, auxCount, totalInputDim);
         _trainer.Train(encodedTrain, epochs: epochs, lr: lr, onProgress: onProgress, classWeights: classWeights);
@@ -162,7 +179,7 @@ public sealed class KairosClassifier
         }
 
         int totalInputDim = _network.TotalFeatures + auxCount;
-        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: _readoutSeed);
 
         Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features (Full Dataset: {trainSamples.Count:N0} samples)...");
         Console.Out.Flush();
@@ -208,7 +225,7 @@ public sealed class KairosClassifier
         }
 
         int totalInputDim = _network.TotalFeatures + auxCount;
-        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+        _trainer = new PairwiseTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: _readoutSeed);
 
         Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features...");
         Console.Out.Flush();
@@ -550,7 +567,7 @@ public sealed class KairosClassifier
         ClassCount = Math.Max(maxLabel + 1, uniqueLabels);
 
         int totalInputDim = encodedTrain[0].Features.Length;
-        _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+        _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: _readoutSeed);
         _trainer = null;
         Thresholds = Enumerable.Repeat(1.0, ClassCount).ToArray();
 
@@ -656,7 +673,7 @@ public sealed class KairosClassifier
         }
 
         int totalInputDim = _network.TotalFeatures + auxCount;
-        _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: Seed);
+        _ovrTrainer = new OvrTrainer(ClassCount, totalInputDim, hiddenDim: hiddenDim, seed: _readoutSeed);
         _trainer = null;
 
         Console.WriteLine($"\n[1/2] Converting continuous signals to neuromorphic rank-order spike features (OvR Full Dataset: {trainSamples.Count:N0} samples)...");
@@ -672,6 +689,30 @@ public sealed class KairosClassifier
         Thresholds = (defaultThresholds != null && defaultThresholds.Length == ClassCount)
             ? defaultThresholds
             : DefaultThresholds(ClassCount, [1.00, 1.10, 1.00, 1.00]);
+    }
+
+    /// <summary>
+    /// Continues OvR training from loaded weights and serialized Adam state.
+    /// </summary>
+    public void ResumeOvrFull(
+        IReadOnlyList<SignalSample> samples,
+        int epochs = 5,
+        double lr = 0.005,
+        double weightPower = 0.5,
+        double[]? weightPowers = null,
+        Action<int, int>? onProgress = null)
+    {
+        EnsureTrained();
+        if (!IsOvr || _ovrTrainer == null)
+            throw new InvalidOperationException("ResumeOvrFull requires an OvR model.");
+        if (samples == null || samples.Count == 0)
+            throw new ArgumentException("Samples cannot be empty.", nameof(samples));
+
+        int auxCount = samples[0].Values.Length > samples[0].EffectiveLength
+            ? samples[0].Values.Length - samples[0].EffectiveLength
+            : 0;
+        var encoded = EncodeSamples(samples, auxCount, _ovrTrainer.FeatureDim, "resume");
+        _ovrTrainer.Train(encoded, epochs, lr, onProgress, weightPower, weightPowers);
     }
 
     /// <summary>
@@ -1211,6 +1252,15 @@ public sealed class KairosClassifier
             meta.OvrB1 = _ovrTrainer.B1;
             meta.OvrW2 = _ovrTrainer.W2;
             meta.OvrB2 = _ovrTrainer.B2;
+            meta.OvrAdamMW1 = _ovrTrainer.AdamMW1;
+            meta.OvrAdamVW1 = _ovrTrainer.AdamVW1;
+            meta.OvrAdamMB1 = _ovrTrainer.AdamMB1;
+            meta.OvrAdamVB1 = _ovrTrainer.AdamVB1;
+            meta.OvrAdamMW2 = _ovrTrainer.AdamMW2;
+            meta.OvrAdamVW2 = _ovrTrainer.AdamVW2;
+            meta.OvrAdamMB2 = _ovrTrainer.AdamMB2;
+            meta.OvrAdamVB2 = _ovrTrainer.AdamVB2;
+            meta.OvrAdamSteps = _ovrTrainer.AdamSteps;
         }
         else if (_trainer != null)
         {
@@ -1266,6 +1316,26 @@ public sealed class KairosClassifier
                 Array.Copy(meta.OvrB1[c], ovr.B1[c], meta.HiddenDim);
                 Array.Copy(meta.OvrW2[c], ovr.W2[c], meta.HiddenDim);
                 ovr.B2[c] = meta.OvrB2[c];
+
+                // Backward compatible: old checkpoints have no Adam state.
+                if (meta.OvrAdamMW1?.Length == meta.ClassCount &&
+                    meta.OvrAdamVW1?.Length == meta.ClassCount &&
+                    meta.OvrAdamMW1[c]?.Length == meta.HiddenDim)
+                {
+                    for (int j = 0; j < meta.HiddenDim; j++)
+                    {
+                        Array.Copy(meta.OvrAdamMW1[c][j], ovr.AdamMW1[c][j], meta.TotalFeatures);
+                        Array.Copy(meta.OvrAdamVW1[c][j], ovr.AdamVW1[c][j], meta.TotalFeatures);
+                    }
+                    Array.Copy(meta.OvrAdamMB1[c], ovr.AdamMB1[c], meta.HiddenDim);
+                    Array.Copy(meta.OvrAdamVB1[c], ovr.AdamVB1[c], meta.HiddenDim);
+                    Array.Copy(meta.OvrAdamMW2[c], ovr.AdamMW2[c], meta.HiddenDim);
+                    Array.Copy(meta.OvrAdamVW2[c], ovr.AdamVW2[c], meta.HiddenDim);
+                    ovr.AdamMB2[c] = meta.OvrAdamMB2[c];
+                    ovr.AdamVB2[c] = meta.OvrAdamVB2[c];
+                    if (meta.OvrAdamSteps?.Length == meta.ClassCount)
+                        ovr.AdamSteps[c] = meta.OvrAdamSteps[c];
+                }
             }
             ovr.CalibScale = classifier.CalibScale;
             ovr.CalibBias = classifier.CalibBias;

@@ -44,7 +44,8 @@ public static class RunBenchmarkCommand
         {
             trainData = trainData.Take(400).ToList();
         }
-        int classCount = trainData.Select(d => d.Label).Distinct().Count();
+        int maxLabel = trainData.Count == 0 ? -1 : trainData.Max(d => d.Label);
+        int classCount = maxLabel + 1;
         Console.WriteLine(CliStrings.SamplesLoaded(trainData.Count, classCount));
 
         Console.WriteLine(CliStrings.Step2TrainingModels);
@@ -166,9 +167,16 @@ public static class RunBenchmarkCommand
                 if (predLstm == sample.Label) correctLstm++;
             }
 
-            kairosAcc[i] = (double)correctKairos / testData.Count;
-            transformerAcc[i] = (double)correctTrans / testData.Count;
-            lstmAcc[i] = (double)correctLstm / testData.Count;
+            if (testData.Count == 0)
+            {
+                kairosAcc[i] = transformerAcc[i] = lstmAcc[i] = double.NaN;
+            }
+            else
+            {
+                kairosAcc[i] = (double)correctKairos / testData.Count;
+                transformerAcc[i] = (double)correctTrans / testData.Count;
+                lstmAcc[i] = (double)correctLstm / testData.Count;
+            }
 
             Console.WriteLine($"      Factor {fStr}x -> Kairos: {kairosAcc[i] * 100.0:F1}% | Transf: {transformerAcc[i] * 100.0:F1}% | LSTM: {lstmAcc[i] * 100.0:F1}%");
         }

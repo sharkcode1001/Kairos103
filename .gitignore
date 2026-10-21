@@ -365,4 +365,25 @@ FodyWeavers.xsd
 # OS & Environment artifacts
 .DS_Store
 Thumbs.db
+
+# Competition datasets (redistributable via Kaggle / PhysioNet, not in-repo)
+datasets/nppe2_dataset/
+datasets/mitbih_nppe2/
+datasets/mit-bih-arrhythmia-database-1.0.0/
+datasets/ecg/ecg_raw/
+
+# Trained model artifacts (regenerate with deploy/train_*.ps1)
+*.kairos
+
+# Generated experiment outputs and submission files
+results/baseline/
+results/best_ensemble/
+results/feature_ablation/
+results/fixed/
+results/master_ensemble_40/
+results/record_reproduction/
+results/single_48/
+results/*.csv
+results/*.log
+results/*.json.tmp
 

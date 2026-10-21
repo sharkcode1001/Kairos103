@@ -563,6 +563,21 @@ switch (command)
         break;
     }
 
+    case "convert-mitbih":
+    {
+        string input = "datasets/mit-bih-arrhythmia-database-1.0.0/mit-bih-arrhythmia-database-1.0.0";
+        string output = "datasets/mitbih_nppe2/mitbih_beats.csv";
+        string audit = "datasets/mitbih_nppe2/mitbih_audit.json";
+        for (int i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--input" && i + 1 < args.Length) input = args[++i];
+            else if (args[i] == "--output" && i + 1 < args.Length) output = args[++i];
+            else if (args[i] == "--audit" && i + 1 < args.Length) audit = args[++i];
+        }
+        ConvertMitBihCommand.Execute(input, output, audit);
+        break;
+    }
+
     default:
     {
         Console.WriteLine(CliStrings.UnknownCommand(command));
